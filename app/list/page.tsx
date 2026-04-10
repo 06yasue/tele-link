@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { siteConfig } from "@/config/site";
 
-// Tipe data buat nampung URL
 type UrlData = {
   id: string;
   slug: string;
@@ -14,19 +13,17 @@ type UrlData = {
   created_at: string;
 };
 
-export default function ListPage() {
+function ListContent() {
   const searchParams = useSearchParams();
-  const user = searchParams.get("user"); // Ngambil ID dari link bot Telegram
+  const user = searchParams.get("user"); 
 
   const [urls, setUrls] = useState<UrlData[]>([]);
   const [totalLinks, setTotalLinks] = useState(0);
   const [totalClicks, setTotalClicks] = useState(0);
   
-  // Pagination State
   const [page, setPage] = useState(1);
-  const limit = 5; // Nampilin 5 data per halaman
+  const limit = 5; 
 
-  // UI State
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -40,7 +37,6 @@ export default function ListPage() {
     try {
       let query = supabase.from("urls").select("*", { count: "exact" });
       
-      // Kalau URL bawa parameter ?user=123, filter datanya!
       if (user) {
         query = query.eq("chat_id", user);
       }
@@ -57,7 +53,6 @@ export default function ListPage() {
       setUrls(data || []);
       setTotalLinks(count || 0);
 
-      // Ngitung total semua klik khusus user ini
       let clickQuery = supabase.from("urls").select("hitcount");
       if (user) clickQuery = clickQuery.eq("chat_id", user);
       
@@ -76,21 +71,20 @@ export default function ListPage() {
     const fullUrl = `https://${siteConfig.domain}/${slug}`;
     navigator.clipboard.writeText(fullUrl);
     setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000); // Teks "Copied!" ilang setelah 2 detik
+    setTimeout(() => setCopiedId(null), 2000); 
   };
 
   const handleDelete = async (id: string) => {
     setDeletingId(id);
     await supabase.from("urls").delete().eq("id", id);
     setDeletingId(null);
-    fetchData(); // Refresh data tanpa reload ppage
+    fetchData(); 
   };
 
   const downloadQR = async (slug: string) => {
     const fullUrl = `https://${siteConfig.domain}/${slug}`;
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(fullUrl)}`;
     
-    // Logic buat maksa browser download gambarnya
     const response = await fetch(qrUrl);
     const blob = await response.blob();
     const link = document.createElement("a");
@@ -157,7 +151,6 @@ export default function ListPage() {
                 urls.map((u) => (
                   <tr key={u.id} className="hover:bg-zinc-800/30 sm:hover:bg-zinc-800/30 md:hover:bg-zinc-800/30 lg:hover:bg-zinc-800/30 xl:hover:bg-zinc-800/30 transition-colors sm:transition-colors md:transition-colors lg:transition-colors xl:transition-colors">
                     
-                    {/* Kolom QR Code */}
                     <td className="p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 align-middle sm:align-middle md:align-middle lg:align-middle xl:align-middle">
                       <div className="flex flex-col sm:flex-col md:flex-col lg:flex-col xl:flex-col items-center sm:items-center md:items-center lg:items-center xl:items-center gap-2 sm:gap-2 md:gap-3 lg:gap-3 xl:gap-4">
                         <img 
@@ -174,14 +167,12 @@ export default function ListPage() {
                       </div>
                     </td>
 
-                    {/* Kolom Short URL */}
                     <td className="p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 align-middle sm:align-middle md:align-middle lg:align-middle xl:align-middle">
                       <a href={`https://${siteConfig.domain}/${u.slug}`} target="_blank" rel="noreferrer" className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl text-blue-400 font-medium sm:font-medium md:font-medium lg:font-medium xl:font-medium hover:underline sm:hover:underline md:hover:underline lg:hover:underline xl:hover:underline">
                         {siteConfig.domain}/{u.slug}
                       </a>
                     </td>
 
-                    {/* Kolom Original URL */}
                     <td className="p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 align-middle sm:align-middle md:align-middle lg:align-middle xl:align-middle max-w-[150px] sm:max-w-[200px] md:max-w-[300px] lg:max-w-[400px] xl:max-w-[500px]">
                       <p className="text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl text-zinc-300 truncate sm:truncate md:truncate lg:truncate xl:truncate">
                         {u.original_url}
@@ -191,14 +182,12 @@ export default function ListPage() {
                       </p>
                     </td>
 
-                    {/* Kolom Hitcount */}
                     <td className="p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 align-middle sm:align-middle md:align-middle lg:align-middle xl:align-middle text-center sm:text-center md:text-center lg:text-center xl:text-center">
                       <span className="inline-flex sm:inline-flex md:inline-flex lg:inline-flex xl:inline-flex items-center sm:items-center md:items-center lg:items-center xl:items-center justify-center sm:justify-center md:justify-center lg:justify-center xl:justify-center w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 lg:w-12 lg:h-12 xl:w-14 xl:h-14 rounded-full sm:rounded-full md:rounded-full lg:rounded-full xl:rounded-full bg-indigo-500/10 text-indigo-400 text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl font-bold sm:font-bold md:font-bold lg:font-bold xl:font-bold">
                         {u.hitcount}
                       </span>
                     </td>
 
-                    {/* Kolom Actions (Copy & Delete) */}
                     <td className="p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 align-middle sm:align-middle md:align-middle lg:align-middle xl:align-middle text-right sm:text-right md:text-right lg:text-right xl:text-right">
                       <div className="flex flex-col sm:flex-col md:flex-row lg:flex-row xl:flex-row justify-end sm:justify-end md:justify-end lg:justify-end xl:justify-end gap-2 sm:gap-2 md:gap-3 lg:gap-4 xl:gap-5">
                         
@@ -227,7 +216,7 @@ export default function ListPage() {
           </table>
         </div>
 
-        {/* Pagination: Cukup Next dan Prev */}
+        {/* Pagination */}
         <div className="p-4 sm:p-5 md:p-6 lg:p-8 xl:p-10 border-t border-zinc-800 flex flex-row sm:flex-row md:flex-row lg:flex-row xl:flex-row justify-between items-center sm:items-center md:items-center lg:items-center xl:items-center">
           <button 
             onClick={() => setPage(p => Math.max(1, p - 1))}
@@ -252,5 +241,18 @@ export default function ListPage() {
       </div>
 
     </div>
+  );
+}
+
+// BUNGKUS KOMPONEN UTAMA PAKE SUSPENSE
+export default function ListPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-zinc-950 flex justify-center items-center p-4 sm:p-6 md:p-8 lg:p-12 xl:p-16">
+        <p className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl text-zinc-500 animate-pulse sm:animate-pulse md:animate-pulse lg:animate-pulse xl:animate-pulse">Memuat data dashboard...</p>
+      </div>
+    }>
+      <ListContent />
+    </Suspense>
   );
 }

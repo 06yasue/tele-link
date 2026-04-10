@@ -2,31 +2,51 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { siteConfig } from '@/config/site';
 
-const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
-
 function generateSlug() {
   return Math.random().toString(36).substring(2, 8);
 }
 
 export async function POST(req: Request) {
   try {
+    const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+    const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_TOKEN}`;
+
     const body = await req.json();
+
+    // 1. TANGANI KLIK TOMBOL (Callback Query)
+    if (body.callback_query) {
+      const chatId = body.callback_query.message.chat.id;
+      const data = body.callback_query.data;
+      const firstName = body.callback_query.from?.first_name || 'Kak';
+
+      if (data === 'new_link') {
+        await fetch(`${TELEGRAM_API}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: `👇 Silakan kirimkan link panjang yang baru, ${firstName}:`
+          })
+        });
+      }
+      return NextResponse.json({ status: 'ok' });
+    }
+
     const message = body.message;
 
-    // Kalau bukan pesan teks, abaikan (mencegah error)
     if (!message || !message.text) {
       return NextResponse.json({ status: 'ok' });
     }
 
     const chatId = message.chat.id;
     const text = message.text;
+    const firstName = message.from?.first_name || 'Kak';
 
-    // 1. TANGANI COMMAND /start BESERTA TOMBOL MENU
+    // 2. TANGANI COMMAND /start
     if (text === '/start') {
-      const welcomeMsg = `Halo! 👋 Selamat datang di bot ${siteConfig.name}.\n\nKirimkan link panjang kamu (harus pakai http:// atau https://) dan bot akan langsung memendekkannya.\n\nPilih menu di bawah ini:`;
+      const welcomeMsg = `Halo ${firstName}! 👋\n\nSelamat datang di bot ${siteConfig.name}.\nKirimkan link panjang kamu (harus pakai http:// atau https://) dan bot akan langsung memendekkannya.`;
       
-      await fetch(TELEGRAM_API, {
+      await fetch(`${TELEGRAM_API}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -35,7 +55,6 @@ export async function POST(req: Request) {
           reply_markup: {
             inline_keyboard: [
               [
-                // Tombol ini bakal ngelempar user ke web lu
                 { text: '📋 List URLs', url: `https://${siteConfig.domain}/list` },
                 { text: '⚙️ Settings', url: `https://${siteConfig.domain}/settings` }
               ]
@@ -46,40 +65,59 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: 'ok' });
     }
 
-    // 2. KALAU BUKAN LINK DAN BUKAN COMMAND
+    // 3. VALIDASI URL
     if (!text.startsWith('http')) {
-      await fetch(TELEGRAM_API, {
+      await fetch(`${TELEGRAM_API}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: '⚠️ Kirim URL yang valid (harus diawali http:// atau https://).' })
+        body: JSON.stringify({ chat_id: chatId, text: `⚠️ ${firstName}, kirim URL yang valid (harus diawali http:// atau https://).` })
       });
       return NextResponse.json({ status: 'ok' });
     }
 
-    // 3. KALAU YANG DIKIRIM ADALAH LINK (PROSES SHORTEN)
+    // 4. KIRIM PESAN PROGRES
+    const progressRes = await fetch(`${TELEGRAM_API}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: `⏳ Tunggu sebentar ya ${firstName}, sedang memproses...` })
+    });
+    const progressData = await progressRes.json();
+    const messageId = progressData.result?.message_id;
+
+    // 5. PROSES DB SUPABASE
     const slug = generateSlug();
-    
     const { error } = await supabase
       .from('urls')
       .insert([{ slug, original_url: text }]);
 
+    // 6. SIAPKAN PESAN HASIL & TOMBOL
     const replyText = error 
-      ? '❌ Gagal membuat short URL. Cek database Supabase kamu.'
-      : `✅ Berhasil dipendekkan!\n\n🔗 URL: https://${siteConfig.domain}/${slug}`;
+      ? `❌ Maaf ${firstName}, gagal membuat short URL.`
+      : `✅ Sukses dipendekkan, ${firstName}!\n\n🔗 Short URL: https://${siteConfig.domain}/${slug}`;
 
-    await fetch(TELEGRAM_API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        chat_id: chatId, 
-        text: replyText,
-        disable_web_page_preview: true // Biar gak muncul preview link panjangnya
-      })
-    });
+    const replyMarkup = error ? {} : {
+      inline_keyboard: [
+        [{ text: '➕ Buat Link Baru', callback_data: 'new_link' }]
+      ]
+    };
+
+    // 7. UBAH PESAN PROGRES JADI HASIL FINAL
+    if (messageId) {
+      await fetch(`${TELEGRAM_API}/editMessageText`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          chat_id: chatId, 
+          message_id: messageId,
+          text: replyText, 
+          disable_web_page_preview: true,
+          reply_markup: replyMarkup
+        })
+      });
+    }
 
     return NextResponse.json({ status: 'ok' });
   } catch (error) {
-    console.error("Webhook Error:", error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

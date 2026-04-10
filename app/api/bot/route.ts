@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     const text = message.text.trim(); 
     const firstName = message.from?.first_name || 'Kak';
 
-    // 3. TANGANI COMMAND /start
+    // 3. TANGANI COMMAND /start (Sekalian bawa ID user di link tombol)
     if (text === '/start') {
       const welcomeMsg = `Halo ${firstName}! 👋\n\nSelamat datang di bot ${siteConfig.name}.\nKirimkan link panjang kamu dan bot akan langsung memendekkannya.`;
       
@@ -64,8 +64,8 @@ export async function POST(req: Request) {
           reply_markup: {
             inline_keyboard: [
               [
-                { text: '📋 List URLs', url: `https://${siteConfig.domain}/list` },
-                { text: '⚙️ Settings', url: `https://${siteConfig.domain}/settings` }
+                { text: '📋 List URLs', url: `https://${siteConfig.domain}/list?user=${chatId}` },
+                { text: '⚙️ Settings', url: `https://${siteConfig.domain}/settings?user=${chatId}` }
               ]
             ]
           }
@@ -74,8 +74,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: 'ok' });
     }
 
-    // 4. CEK EMOJI (Tolak kalau ada emoji)
-    const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u;
+    // 4. CEK EMOJI (Pake Regex klasik tanpa flag /u biar lolos Vercel Build ES5)
+    const emojiRegex = /([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/;
     if (emojiRegex.test(text)) {
       await fetch(`${TELEGRAM_API}/sendMessage`, {
         method: 'POST',
@@ -114,11 +114,15 @@ export async function POST(req: Request) {
     const progressData = await progressRes.json();
     const messageId = progressData.result?.message_id;
 
-    // 7. PROSES DB SUPABASE
+    // 7. PROSES DB SUPABASE (Sekalian insert chat_id biar privasi terjaga)
     const slug = generateSlug();
     const { error } = await supabase
       .from('urls')
-      .insert([{ slug, original_url: text }]);
+      .insert([{ 
+        slug, 
+        original_url: text,
+        chat_id: chatId.toString() 
+      }]);
 
     // 8. SIAPKAN PESAN HASIL & TOMBOL
     const replyText = error 

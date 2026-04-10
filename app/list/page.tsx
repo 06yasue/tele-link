@@ -2,7 +2,6 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
 import { siteConfig } from "@/config/site";
 
 type UrlData = {
@@ -22,7 +21,7 @@ function ListContent() {
   const [totalClicks, setTotalClicks] = useState(0);
   
   const [page, setPage] = useState(1);
-  const limit = 5; 
+  const limit = 15; 
 
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -35,33 +34,15 @@ function ListContent() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      let query = supabase.from("urls").select("*", { count: "exact" });
+      const res = await fetch(`/api/urls?user=${user || ""}&page=${page}`);
+      if (!res.ok) throw new Error("Gagal fetch data");
       
-      if (user) {
-        query = query.eq("chat_id", user);
-      }
-
-      const from = (page - 1) * limit;
-      const to = from + limit - 1;
-
-      const { data, count, error } = await query
-        .order("created_at", { ascending: false })
-        .range(from, to);
-
-      if (error) throw error;
-
-      setUrls(data || []);
-      setTotalLinks(count || 0);
-
-      let clickQuery = supabase.from("urls").select("hitcount");
-      if (user) clickQuery = clickQuery.eq("chat_id", user);
-      
-      const { data: allClicks } = await clickQuery;
-      const clicks = allClicks?.reduce((acc, curr) => acc + (curr.hitcount || 0), 0) || 0;
-      setTotalClicks(clicks);
-
+      const json = await res.json();
+      setUrls(json.urls);
+      setTotalLinks(json.totalLinks);
+      setTotalClicks(json.totalClicks);
     } catch (error) {
-      console.error("Gagal ambil data", error);
+      console.error("Error:", error);
     } finally {
       setLoading(false);
     }
@@ -76,7 +57,11 @@ function ListContent() {
 
   const handleDelete = async (id: string) => {
     setDeletingId(id);
-    await supabase.from("urls").delete().eq("id", id);
+    await fetch("/api/urls", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id })
+    });
     setDeletingId(null);
     fetchData(); 
   };
@@ -96,12 +81,11 @@ function ListContent() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white p-4 sm:p-6 md:p-8 lg:p-12 xl:p-16">
+    <div className="min-h-screen sm:min-h-screen md:min-h-screen lg:min-h-screen xl:min-h-screen bg-zinc-950 text-white p-4 sm:p-6 md:p-8 lg:p-12 xl:p-16">
       
-      {/* Header & Stats */}
-      <div className="max-w-7xl mx-auto flex flex-col sm:flex-col md:flex-row lg:flex-row xl:flex-row justify-between items-start sm:items-start md:items-center lg:items-center xl:items-center mb-6 sm:mb-8 md:mb-10 lg:mb-12 xl:mb-14 gap-4 sm:gap-6 md:gap-0 lg:gap-0 xl:gap-0">
+      <div className="max-w-7xl sm:max-w-7xl md:max-w-7xl lg:max-w-7xl xl:max-w-7xl mx-auto sm:mx-auto md:mx-auto lg:mx-auto xl:mx-auto flex flex-col sm:flex-col md:flex-row lg:flex-row xl:flex-row justify-between items-start sm:items-start md:items-center lg:items-center xl:items-center mb-6 sm:mb-8 md:mb-10 lg:mb-12 xl:mb-14 gap-4 sm:gap-6 md:gap-0 lg:gap-0 xl:gap-0">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent mb-2 sm:mb-3 md:mb-4 lg:mb-5 xl:mb-6">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold sm:font-bold md:font-bold lg:font-bold xl:font-bold bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent mb-2 sm:mb-3 md:mb-4 lg:mb-5 xl:mb-6">
             Dashboard Link
           </h1>
           <p className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl text-zinc-400">
@@ -110,21 +94,20 @@ function ListContent() {
         </div>
         
         <div className="flex flex-row sm:flex-row md:flex-row lg:flex-row xl:flex-row gap-3 sm:gap-4 md:gap-5 lg:gap-6 xl:gap-8 w-full sm:w-full md:w-auto lg:w-auto xl:w-auto">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg sm:rounded-xl md:rounded-2xl lg:rounded-2xl xl:rounded-3xl p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 flex-1 sm:flex-1 md:flex-none lg:flex-none xl:flex-none text-center">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg sm:rounded-xl md:rounded-2xl lg:rounded-2xl xl:rounded-3xl p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 flex-1 sm:flex-1 md:flex-none lg:flex-none xl:flex-none text-center sm:text-center md:text-center lg:text-center xl:text-center">
             <p className="text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl text-zinc-500 uppercase tracking-widest sm:tracking-widest md:tracking-widest lg:tracking-widest xl:tracking-widest mb-1 sm:mb-2 md:mb-2 lg:mb-3 xl:mb-4">Total Link</p>
-            <p className="text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-black text-white">{totalLinks}</p>
+            <p className="text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-black sm:font-black md:font-black lg:font-black xl:font-black text-white">{totalLinks}</p>
           </div>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg sm:rounded-xl md:rounded-2xl lg:rounded-2xl xl:rounded-3xl p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 flex-1 sm:flex-1 md:flex-none lg:flex-none xl:flex-none text-center">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg sm:rounded-xl md:rounded-2xl lg:rounded-2xl xl:rounded-3xl p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 flex-1 sm:flex-1 md:flex-none lg:flex-none xl:flex-none text-center sm:text-center md:text-center lg:text-center xl:text-center">
             <p className="text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl text-zinc-500 uppercase tracking-widest sm:tracking-widest md:tracking-widest lg:tracking-widest xl:tracking-widest mb-1 sm:mb-2 md:mb-2 lg:mb-3 xl:mb-4">Total Klik</p>
-            <p className="text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-black text-rose-500">{totalClicks}</p>
+            <p className="text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-black sm:font-black md:font-black lg:font-black xl:font-black text-rose-500">{totalClicks}</p>
           </div>
         </div>
       </div>
 
-      {/* Table Section */}
-      <div className="max-w-7xl mx-auto bg-zinc-900/50 border border-zinc-800 rounded-xl sm:rounded-2xl md:rounded-3xl lg:rounded-3xl xl:rounded-3xl overflow-hidden sm:overflow-hidden md:overflow-hidden lg:overflow-hidden xl:overflow-hidden">
+      <div className="max-w-7xl sm:max-w-7xl md:max-w-7xl lg:max-w-7xl xl:max-w-7xl mx-auto sm:mx-auto md:mx-auto lg:mx-auto xl:mx-auto bg-zinc-900/50 border border-zinc-800 rounded-xl sm:rounded-2xl md:rounded-3xl lg:rounded-3xl xl:rounded-3xl overflow-hidden sm:overflow-hidden md:overflow-hidden lg:overflow-hidden xl:overflow-hidden">
         <div className="overflow-x-auto sm:overflow-x-auto md:overflow-x-auto lg:overflow-x-auto xl:overflow-x-auto">
-          <table className="w-full text-left sm:text-left md:text-left lg:text-left xl:text-left border-collapse sm:border-collapse md:border-collapse lg:border-collapse xl:border-collapse">
+          <table className="w-full sm:w-full md:w-full lg:w-full xl:w-full text-left sm:text-left md:text-left lg:text-left xl:text-left border-collapse sm:border-collapse md:border-collapse lg:border-collapse xl:border-collapse">
             <thead>
               <tr className="bg-zinc-900 border-b border-zinc-800 text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl text-zinc-400">
                 <th className="p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 font-semibold sm:font-semibold md:font-semibold lg:font-semibold xl:font-semibold whitespace-nowrap sm:whitespace-nowrap md:whitespace-nowrap lg:whitespace-nowrap xl:whitespace-nowrap">QR Code</th>
@@ -216,7 +199,6 @@ function ListContent() {
           </table>
         </div>
 
-        {/* Pagination */}
         <div className="p-4 sm:p-5 md:p-6 lg:p-8 xl:p-10 border-t border-zinc-800 flex flex-row sm:flex-row md:flex-row lg:flex-row xl:flex-row justify-between items-center sm:items-center md:items-center lg:items-center xl:items-center">
           <button 
             onClick={() => setPage(p => Math.max(1, p - 1))}
@@ -244,11 +226,10 @@ function ListContent() {
   );
 }
 
-// BUNGKUS KOMPONEN UTAMA PAKE SUSPENSE
 export default function ListPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-zinc-950 flex justify-center items-center p-4 sm:p-6 md:p-8 lg:p-12 xl:p-16">
+      <div className="min-h-screen sm:min-h-screen md:min-h-screen lg:min-h-screen xl:min-h-screen bg-zinc-950 flex sm:flex md:flex lg:flex xl:flex justify-center sm:justify-center md:justify-center lg:justify-center xl:justify-center items-center sm:items-center md:items-center lg:items-center xl:items-center p-4 sm:p-6 md:p-8 lg:p-12 xl:p-16">
         <p className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl text-zinc-500 animate-pulse sm:animate-pulse md:animate-pulse lg:animate-pulse xl:animate-pulse">Memuat data dashboard...</p>
       </div>
     }>

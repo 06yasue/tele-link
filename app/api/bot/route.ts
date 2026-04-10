@@ -13,7 +13,7 @@ export async function POST(req: Request) {
 
     const body = await req.json();
 
-    // 1. TANGANI KLIK TOMBOL (Callback Query)
+    // 1. TANGANI KLIK TOMBOL
     if (body.callback_query) {
       const chatId = body.callback_query.message.chat.id;
       const data = body.callback_query.data;
@@ -34,17 +34,26 @@ export async function POST(req: Request) {
 
     const message = body.message;
 
+    // 2. CEK KALAU BUKAN PESAN TEKS (Misal: Stiker, Foto, File)
     if (!message || !message.text) {
+      if (message && message.chat) {
+        await fetch(`${TELEGRAM_API}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: message.chat.id, text: '⚠️ Maaf, bot ini cuma bisa memproses pesan teks berupa link ya!' })
+        });
+      }
       return NextResponse.json({ status: 'ok' });
     }
 
     const chatId = message.chat.id;
-    const text = message.text;
+    // Hapus spasi di awal dan akhir teks (Fix masalah spasi)
+    const text = message.text.trim(); 
     const firstName = message.from?.first_name || 'Kak';
 
-    // 2. TANGANI COMMAND /start
+    // 3. TANGANI COMMAND /start
     if (text === '/start') {
-      const welcomeMsg = `Halo ${firstName}! 👋\n\nSelamat datang di bot ${siteConfig.name}.\nKirimkan link panjang kamu (harus pakai http:// atau https://) dan bot akan langsung memendekkannya.`;
+      const welcomeMsg = `Halo ${firstName}! 👋\n\nSelamat datang di bot ${siteConfig.name}.\nKirimkan link panjang kamu dan bot akan langsung memendekkannya.`;
       
       await fetch(`${TELEGRAM_API}/sendMessage`, {
         method: 'POST',
@@ -65,17 +74,38 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: 'ok' });
     }
 
-    // 3. VALIDASI URL
-    if (!text.startsWith('http')) {
+    // 4. CEK EMOJI (Tolak kalau ada emoji)
+    const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u;
+    if (emojiRegex.test(text)) {
       await fetch(`${TELEGRAM_API}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: `⚠️ ${firstName}, kirim URL yang valid (harus diawali http:// atau https://).` })
+        body: JSON.stringify({ chat_id: chatId, text: `⚠️ ${firstName}, tolong jangan gunakan emoji pada link ya!` })
       });
       return NextResponse.json({ status: 'ok' });
     }
 
-    // 4. KIRIM PESAN PROGRES
+    // 5. VALIDASI URL KETAT (Mastiin beneran link)
+    let isValidUrl = false;
+    try {
+      const parsedUrl = new URL(text);
+      if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
+        isValidUrl = true;
+      }
+    } catch (e) {
+      isValidUrl = false;
+    }
+
+    if (!isValidUrl) {
+      await fetch(`${TELEGRAM_API}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: `⚠️ ${firstName}, kirim URL yang valid (harus diawali http:// atau https:// tanpa embel-embel lain).` })
+      });
+      return NextResponse.json({ status: 'ok' });
+    }
+
+    // 6. KIRIM PESAN PROGRES
     const progressRes = await fetch(`${TELEGRAM_API}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -84,13 +114,13 @@ export async function POST(req: Request) {
     const progressData = await progressRes.json();
     const messageId = progressData.result?.message_id;
 
-    // 5. PROSES DB SUPABASE
+    // 7. PROSES DB SUPABASE
     const slug = generateSlug();
     const { error } = await supabase
       .from('urls')
       .insert([{ slug, original_url: text }]);
 
-    // 6. SIAPKAN PESAN HASIL & TOMBOL
+    // 8. SIAPKAN PESAN HASIL & TOMBOL
     const replyText = error 
       ? `❌ Maaf ${firstName}, gagal membuat short URL.`
       : `✅ Sukses dipendekkan, ${firstName}!\n\n🔗 Short URL: https://${siteConfig.domain}/${slug}`;
@@ -101,7 +131,7 @@ export async function POST(req: Request) {
       ]
     };
 
-    // 7. UBAH PESAN PROGRES JADI HASIL FINAL
+    // 9. UBAH PESAN PROGRES JADI HASIL FINAL
     if (messageId) {
       await fetch(`${TELEGRAM_API}/editMessageText`, {
         method: 'POST',

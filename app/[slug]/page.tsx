@@ -29,11 +29,19 @@ async function fetchTitleOnly(url: string) {
 }
 
 export default async function SafelinkPage({ params }: { params: { slug: string } }) {
+  const { slug } = params;
+
+  // --- TEMBOK PEMISAH V1 & V2 ---
+  // Kalau slug berupa ANGKA, ini milik V2. Langsung lempar ke jalur /go/
+  if (/^\d+$/.test(slug)) {
+    return redirect(`/go/${slug}`);
+  }
+
   // 1. Ambil data URL
   const { data: urlData, error } = await supabase
     .from('urls')
     .select('*')
-    .eq('slug', params.slug)
+    .eq('slug', slug)
     .maybeSingle();
 
   if (error || !urlData || !urlData.original_url) {
@@ -65,14 +73,15 @@ export default async function SafelinkPage({ params }: { params: { slug: string 
   const pageTitle = await fetchTitleOnly(urlData.original_url);
 
   return (
-    <div className="min-h-screen bg-[#121212] flex flex-col items-center py-8 px-4 font-sans text-white relative">
+    // Background disamakan dengan list page (bg-zinc-950)
+    <div className="min-h-screen bg-zinc-950 flex flex-col items-center py-8 px-4 font-sans text-white relative">
       
       {/* Background Decor */}
-      <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-zinc-700 to-transparent"></div>
+      <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-zinc-800 to-transparent"></div>
 
       {settings?.ads_head && <div className="hidden" dangerouslySetInnerHTML={{ __html: settings.ads_head || "" }} />}
 
-      {/* --- HEADER TITLE (TANPA BOX 3D, HANYA SVG + TEKS) --- */}
+      {/* --- HEADER TITLE (HANYA SVG + TEKS) --- */}
       <div className="flex items-center justify-center gap-3 sm:gap-4 mb-10 sm:mb-12 mt-4 sm:mt-6 w-full max-w-4xl">
         <svg className="w-8 h-8 sm:w-10 sm:h-10 text-indigo-500 drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -86,7 +95,7 @@ export default async function SafelinkPage({ params }: { params: { slug: string 
         <div className="w-full max-w-4xl mb-8 flex justify-center items-center overflow-hidden" dangerouslySetInnerHTML={{ __html: settings.ads_body || "" }} />
       )}
 
-      {/* PANGGIL UI SAFELINK BOX 3D */}
+      {/* PANGGIL UI SAFELINK CLIENT */}
       <SafelinkClient 
         originalUrl={urlData.original_url} 
         settings={settings} 
@@ -94,9 +103,9 @@ export default async function SafelinkPage({ params }: { params: { slug: string 
       />
 
       {/* --- ADS AREA PONSEL & DESKTOP --- */}
-      {/* Box 3D ini cuma bakal muncul kalau minimal ada satu iklan (Mobile/Desktop) yang diisi */}
+      {/* Box diubah senada dengan halaman List (bg-zinc-900, border-zinc-800, TANPA 3D Shadow) */}
       {(settings?.ads_mobile || settings?.ads_desktop) && (
-        <div className="w-full max-w-[90%] sm:max-w-[85%] md:max-w-2xl lg:max-w-3xl xl:max-w-4xl mx-auto mt-12 sm:mt-16 md:mt-20 lg:mt-20 xl:mt-24 bg-[#1e1e20] border-2 border-[#3f3f46] rounded-2xl p-6 md:p-8 lg:p-10 shadow-[6px_6px_0px_0px_#3f3f46] sm:shadow-[8px_8px_0px_0px_#3f3f46] md:shadow-[10px_10px_0px_0px_#3f3f46] flex flex-col items-center justify-center text-center">
+        <div className="w-full max-w-2xl md:max-w-4xl mx-auto mt-12 sm:mt-16 md:mt-20 bg-zinc-900 border border-zinc-800 rounded-2xl p-6 md:p-8 flex flex-col items-center justify-center text-center">
           <div className="w-full flex flex-col items-center justify-center">
             {settings?.ads_mobile && (
               <div className="block sm:block md:hidden lg:hidden xl:hidden w-full text-center flex justify-center items-center overflow-hidden" dangerouslySetInnerHTML={{ __html: settings.ads_mobile || "" }} />

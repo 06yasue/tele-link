@@ -3,13 +3,9 @@ import { supabase } from '@/lib/supabase';
 
 export async function GET() {
   try {
-    const { data, error } = await supabase
-      .from('settings')
-      .select('*')
-      .eq('id', 1)
-      .single();
-
-    if (error && error.code !== 'PGRST116') throw error; // PGRST116 itu error kalau data kosong
+    // Paksa ambil cuma baris ID 1
+    const { data, error } = await supabase.from('settings').select('*').eq('id', 1).single();
+    if (error) throw error;
     return NextResponse.json(data || {});
   } catch (error) {
     return NextResponse.json({ error: 'Gagal mengambil data settings' }, { status: 500 });
@@ -20,10 +16,15 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     
-    // Update data dengan id 1
+    // Pastikan kita buang field captcha biar gak nyangkut kalau disimpen
+    delete body.captcha_key_1;
+    delete body.captcha_key_2;
+
+    // WAJIB PAKE UPDATE + EQ('id', 1) BIAR NIMPA, BUKAN BIKIN BARU
     const { error } = await supabase
       .from('settings')
-      .upsert({ id: 1, ...body, updated_at: new Date().toISOString() });
+      .update({ ...body, updated_at: new Date().toISOString() })
+      .eq('id', 1);
 
     if (error) throw error;
     return NextResponse.json({ status: 'ok' });

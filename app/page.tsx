@@ -12,7 +12,7 @@ export default async function HomePage() {
   } catch (e) {}
 
   // Ganti link ini sama username bot Telegram lu
-  const telegramBotLink = "https://t.me/nama_bot_lu_disini";
+  const telegramBotLink = "https://t.me/Linkv1_bot";
 
   return (
     <div className="min-h-screen bg-[#121212] flex flex-col items-center font-sans text-white relative overflow-hidden">
@@ -115,9 +115,7 @@ export default async function HomePage() {
           </div>
 
           <div className="flex flex-wrap justify-center gap-6 text-sm font-medium text-zinc-500">
-            <a href="#" className="hover:text-indigo-400 transition-colors">Privacy Policy</a>
-            <a href="#" className="hover:text-indigo-400 transition-colors">Terms of Service</a>
-            <a href="#" className="hover:text-indigo-400 transition-colors">Contact Support</a>
+            
           </div>
 
         </div>

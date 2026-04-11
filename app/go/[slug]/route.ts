@@ -9,7 +9,7 @@ export async function GET(
 ) {
   const { slug } = params;
 
-  // 1. Ambil data dari database
+  // 1. Ambil data
   const { data: urlData, error } = await supabase
     .from('urls')
     .select('*')
@@ -17,22 +17,24 @@ export async function GET(
     .maybeSingle();
 
   if (error || !urlData || !urlData.original_url) {
-    return NextResponse.json({ error: 'Link not found' }, { status: 404 });
+    return NextResponse.json({ error: 'Link Not Found' }, { status: 404 });
   }
 
-  // 2. Deteksi Bot Sosmed (Cloaking)
   const userAgent = request.headers.get('user-agent')?.toLowerCase() || '';
+  // Cek apakah ini Bot Sosmed
   const isBot = /bot|facebookexternalhit|whatsapp|telegram|twitter|linkedin|skype|discord|slack|google|bing/i.test(userAgent);
 
-  // 3. LOGIKA REDIRECT V2
-  if (isBot && urlData.fake_url) {
-    // Kalau BOT: Lempar ke Fake URL (Biar preview sosmed minjem domain asli)
-    return Response.redirect(urlData.fake_url, 302);
+  // 2. LOGIKA REDIRECT V2
+  if (isBot) {
+    // BOT SOSMED: Kasih Fake Link (Biar preview domain asli muncul)
+    return Response.redirect(urlData.fake_url || urlData.original_url, 302);
   }
 
-  // Kalau MANUSIA: Langsung lempar ke Link Tujuan (Tanpa Ads/UI)
-  // Update hitcount di background (jangan ditungguin biar cepet)
-  supabase.from('urls').update({ hitcount: (urlData.hitcount || 0) + 1 }).eq('id', urlData.id).then();
+  // MANUSIA (Browser): Alihkan ke FAKE LINK sesuai permintaan lu
+  // Link asli (original_url) tetep aman di database buat keperluan lu aja
+  if (urlData.fake_url) {
+    return Response.redirect(urlData.fake_url, 302);
+  }
 
   return Response.redirect(urlData.original_url, 302);
 }

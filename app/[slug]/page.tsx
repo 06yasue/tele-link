@@ -7,6 +7,26 @@ import SafelinkClient from './SafelinkClient';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+// Fungsi cuma ngambil TITLE dari web tujuan, TANPA GAMBAR
+async function fetchTitleOnly(url: string) {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000); // Max 3 detik biar gak lemot
+    const res = await fetch(url, { 
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' } 
+    });
+    clearTimeout(timeoutId);
+    
+    const html = await res.text();
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    if (titleMatch) return titleMatch[1];
+  } catch (e) {
+    // Abaikan kalau gagal ditarik
+  }
+  return `Menuju ke ${new URL(url).hostname}`;
+}
+
 export default async function SafelinkPage({ params }: { params: { slug: string } }) {
   // 1. Ambil data URL
   const { data: urlData, error } = await supabase
@@ -19,20 +39,16 @@ export default async function SafelinkPage({ params }: { params: { slug: string 
     notFound(); 
   }
 
-  // 2. CLOAKING: Deteksi Bot Sosmed
+  // 2. CLOAKING: Lempar Bot Sosmed Langsung ke Link Asli!
   const headersList = headers();
   const userAgent = headersList.get('user-agent')?.toLowerCase() || '';
-  
-  // Daftar bot dari sosmed besar
-  const isBot = /bot|facebookexternalhit|whatsapp|telegram|twitter|linkedin|skype|discord|slack|google|bing/i.test(userAgent);
+  const isBot = /bot|facebookexternalhit|whatsapp|telegram|twitter|linkedin|skype|discord|slack|google|bing|vercel/i.test(userAgent);
 
   if (isBot) {
-    // Jika yang akses adalah bot, LANGSUNG lempar ke URL asli. 
-    // Ini bikin preview di FB/WA otomatis ngambil domain dan meta target asli.
     redirect(urlData.original_url);
   }
 
-  // 3. Update Hitcount (Cuma jalan kalau yang akses manusia)
+  // 3. Update Hitcount (Hanya untuk manusia)
   try {
     await supabase.from('urls').update({ hitcount: (urlData.hitcount || 0) + 1 }).eq('id', urlData.id);
   } catch (e) {}
@@ -44,43 +60,41 @@ export default async function SafelinkPage({ params }: { params: { slug: string 
     settings = data;
   } catch (e) {}
 
-  return (
-    <div className="min-h-screen bg-[#0a0a0b] flex flex-col items-center py-8 px-4 font-sans selection:bg-indigo-500/30">
-      
-      {/* ADS HEAD */}
-      {settings?.ads_head && <div className="hidden" dangerouslySetInnerHTML={{ __html: settings.ads_head }} />}
+  // 5. Ambil Title untuk ditampilin di UI
+  const pageTitle = await fetchTitleOnly(urlData.original_url);
 
-      {/* HEADER */}
-      <h1 className="text-3xl md:text-5xl font-black text-white mb-8 tracking-tight drop-shadow-xl z-10 relative">
+  return (
+    <div className="min-h-screen bg-[#121212] flex flex-col items-center py-8 px-4 font-sans text-white">
+      
+      {settings?.ads_head && <div className="hidden" dangerouslySetInnerHTML={{ __html: settings.ads_head || "" }} />}
+
+      <h1 className="text-3xl md:text-5xl font-black mb-8 tracking-tight drop-shadow-xl text-center">
         {siteConfig.name}
       </h1>
 
-      {/* ADS BODY (Tengah/Rapih) */}
       {settings?.ads_body && (
-        <div className="w-full max-w-4xl mb-8 flex justify-center items-center overflow-hidden z-10" dangerouslySetInnerHTML={{ __html: settings.ads_body }} />
+        <div className="w-full max-w-4xl mb-8 flex justify-center items-center" dangerouslySetInnerHTML={{ __html: settings.ads_body || "" }} />
       )}
 
-      {/* TAMPILAN CLIENT (Safelink UI) */}
+      {/* PANGGIL UI SAFELINK BOX 3D */}
       <SafelinkClient 
         originalUrl={urlData.original_url} 
         settings={settings} 
+        title={pageTitle}
       />
 
-      {/* ADS KHUSUS DEVICE (Rapih Tengah) */}
-      <div className="w-full max-w-4xl mt-12 flex flex-col items-center z-10">
+      <div className="w-full max-w-4xl mt-12 flex flex-col items-center">
         {settings?.ads_mobile && (
-          <div className="block md:hidden w-full flex justify-center items-center overflow-hidden" dangerouslySetInnerHTML={{ __html: settings.ads_mobile }} />
+          <div className="block md:hidden w-full flex justify-center items-center" dangerouslySetInnerHTML={{ __html: settings.ads_mobile || "" }} />
         )}
         {settings?.ads_desktop && (
-          <div className="hidden md:flex w-full justify-center items-center overflow-hidden" dangerouslySetInnerHTML={{ __html: settings.ads_desktop }} />
+          <div className="hidden md:flex w-full justify-center items-center" dangerouslySetInnerHTML={{ __html: settings.ads_desktop || "" }} />
         )}
       </div>
 
-      {/* ADS FOOTER */}
       {settings?.ads_footer && (
-        <div className="w-full max-w-4xl mt-auto pt-12 flex justify-center items-center overflow-hidden z-10" dangerouslySetInnerHTML={{ __html: settings.ads_footer }} />
+        <div className="w-full max-w-4xl mt-auto pt-12 flex justify-center items-center" dangerouslySetInnerHTML={{ __html: settings.ads_footer || "" }} />
       )}
-
     </div>
   );
 }

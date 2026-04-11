@@ -1,6 +1,6 @@
 export const siteConfig = {
-  name: "Short URL Bot",
-  domain: "tele-link-eight.vercel.app", 
+  name: "ShrtEuOrg",
+  domain: "vidphim.eu.org", 
 };
 
 export type SiteConfig = typeof siteConfig;

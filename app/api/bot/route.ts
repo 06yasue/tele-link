@@ -44,7 +44,6 @@ export async function POST(req: Request) {
       const firstName = body.callback_query.from?.first_name || 'User';
 
       if (data === 'main_menu') {
-        // Bersihin state kalau user batalin proses di tengah jalan
         await supabase.from('urls').delete().eq('chat_id', chatId.toString()).in('original_url', ['WAITING_FAKE', 'WAITING_DEST']);
         await sendMainMenu(chatId.toString(), firstName);
       }
@@ -60,7 +59,6 @@ export async function POST(req: Request) {
       }
 
       if (data === 'start_v2') {
-        // Bersihin state lama dan mulai state V2 baru
         await supabase.from('urls').delete().eq('chat_id', chatId.toString()).in('original_url', ['WAITING_FAKE', 'WAITING_DEST']);
         await supabase.from('urls').insert([{ chat_id: chatId.toString(), original_url: 'WAITING_FAKE', slug: `TEMP_${Date.now()}` }]);
 
@@ -76,18 +74,59 @@ export async function POST(req: Request) {
     }
 
     const message = body.message;
-    if (!message || !message.text) return NextResponse.json({ status: 'ok' });
+
+    // FILTER 1: TOLAK JIKA BUKAN TEKS (Gambar, Stiker, File, dll)
+    if (!message || !message.text) {
+      if (message && message.chat) {
+        await fetch(`${TELEGRAM_API}/sendMessage`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: message.chat.id, text: '⚠️ Error: Bot only accepts valid text links!' })
+        });
+      }
+      return NextResponse.json({ status: 'ok' });
+    }
 
     const chatId = message.chat.id;
     const text = message.text.trim();
     const firstName = message.from?.first_name || 'User';
 
-    // 2. COMMAND /start
+    // COMMAND /start (Langsung bypass ke menu awal)
     if (text === '/start') {
       await supabase.from('urls').delete().eq('chat_id', chatId.toString()).in('original_url', ['WAITING_FAKE', 'WAITING_DEST']);
       await sendMainMenu(chatId.toString(), firstName);
       return NextResponse.json({ status: 'ok' });
     }
+
+    // FILTER 2: TOLAK EMOJI
+    const emojiRegex = /([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/;
+    if (emojiRegex.test(text)) {
+      await fetch(`${TELEGRAM_API}/sendMessage`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: `⚠️ Error: Please do not use emojis in your links!` })
+      });
+      return NextResponse.json({ status: 'ok' });
+    }
+
+    // FILTER 3: VALIDASI FORMAT URL (Harus http/https)
+    let isValidUrl = false;
+    try {
+      const parsedUrl = new URL(text);
+      if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
+        isValidUrl = true;
+      }
+    } catch (e) {
+      isValidUrl = false;
+    }
+
+    if (!isValidUrl) {
+      await fetch(`${TELEGRAM_API}/sendMessage`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: `⚠️ Error: Please send a valid URL (must start with http:// or https://).` })
+      });
+      return NextResponse.json({ status: 'ok' });
+    }
+
+    // --- JIKA SEMUA FILTER LOLOS, LANJUT PROSES UTAMA ---
 
     // 3. LOGIKA STEP-BY-STEP V2
     const { data: stateFake } = await supabase.from('urls').select('*').eq('chat_id', chatId.toString()).eq('original_url', 'WAITING_FAKE').single();

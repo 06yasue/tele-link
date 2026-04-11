@@ -98,3 +98,4 @@ export default async function SafelinkPage({ params }: { params: { slug: string 
     </div>
   );
 }
+

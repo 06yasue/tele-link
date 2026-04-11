@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { supabase } from '@/lib/supabase';
 import { siteConfig } from '@/config/site';
 import SafelinkClient from './SafelinkClient';
+import Histats from '@/components/Histats';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -120,6 +121,7 @@ export default async function SafelinkPage({ params }: { params: { slug: string 
       {settings?.ads_footer && (
         <div className="w-full max-w-4xl mt-auto pt-16 sm:pt-16 md:pt-20 lg:pt-24 xl:pt-24 flex justify-center items-center overflow-hidden" dangerouslySetInnerHTML={{ __html: settings.ads_footer || "" }} />
       )}
+      <Histats />
     </div>
   );
 }

@@ -18,6 +18,7 @@ type UrlData = {
   id: string;
   slug: string;
   original_url: string;
+  fake_url?: string;
   hitcount: number;
   created_at: string;
 };
@@ -31,7 +32,7 @@ function ListContent() {
   const [totalClicks, setTotalClicks] = useState(0);
   
   const [page, setPage] = useState(1);
-  const limit = 6; // Dibuat genap biar rapih di grid
+  const limit = 6;
 
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -58,8 +59,9 @@ function ListContent() {
     }
   };
 
-  const handleCopy = (slug: string, id: string) => {
-    const fullUrl = `https://${siteConfig.domain}/${slug}`;
+  // FUNGSI COPY URL DIUPDATE UNTUK MENDUKUNG V2
+  const handleCopy = (slug: string, id: string, isV2: boolean) => {
+    const fullUrl = `https://${siteConfig.domain}${isV2 ? '/go/' : '/'}${slug}`;
     navigator.clipboard.writeText(fullUrl);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000); 
@@ -76,8 +78,9 @@ function ListContent() {
     fetchData(); 
   };
 
-  const downloadQR = (slug: string) => {
-    const fullUrl = `https://${siteConfig.domain}/${slug}`;
+  // FUNGSI QR CODE DIUPDATE UNTUK MENDUKUNG V2
+  const downloadQR = (slug: string, isV2: boolean) => {
+    const fullUrl = `https://${siteConfig.domain}${isV2 ? '/go/' : '/'}${slug}`;
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(fullUrl)}&color=ffffff&bgcolor=09090b`;
     window.open(qrUrl, "_blank");
   };
@@ -151,78 +154,100 @@ function ListContent() {
           </div>
         ) : (
           <div className="grid sm:grid md:grid lg:grid xl:grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5 md:gap-6 lg:gap-6 xl:gap-8">
-            {urls.map((u) => (
-              <div key={u.id} className="relative sm:relative md:relative lg:relative xl:relative bg-zinc-900 sm:bg-zinc-900 md:bg-zinc-900 lg:bg-zinc-900 xl:bg-zinc-900 border sm:border md:border lg:border xl:border border-zinc-800 sm:border-zinc-800 md:border-zinc-800 lg:border-zinc-800 xl:border-zinc-800 rounded-xl sm:rounded-xl md:rounded-2xl lg:rounded-2xl xl:rounded-2xl p-4 sm:p-5 md:p-6 lg:p-6 xl:p-8 flex sm:flex md:flex lg:flex xl:flex flex-col sm:flex-col md:flex-col lg:flex-col xl:flex-col justify-between sm:justify-between md:justify-between lg:justify-between xl:justify-between hover:border-zinc-700 sm:hover:border-zinc-700 md:hover:border-zinc-700 lg:hover:border-zinc-700 xl:hover:border-zinc-700 transition-colors sm:transition-colors md:transition-colors lg:transition-colors xl:transition-colors group sm:group md:group lg:group xl:group">
-                
-                {/* Tombol Delete di Pojok Kanan Atas */}
-                <button 
-                  onClick={() => handleDelete(u.id)}
-                  disabled={deletingId === u.id}
-                  className="absolute sm:absolute md:absolute lg:absolute xl:absolute top-4 sm:top-4 md:top-5 lg:top-5 xl:top-6 right-4 sm:right-4 md:right-5 lg:right-5 xl:right-6 text-zinc-500 sm:text-zinc-500 md:text-zinc-500 lg:text-zinc-500 xl:text-zinc-500 hover:text-rose-500 sm:hover:text-rose-500 md:hover:text-rose-500 lg:hover:text-rose-500 xl:hover:text-rose-500 bg-zinc-950 sm:bg-zinc-950 md:bg-zinc-950 lg:bg-zinc-950 xl:bg-zinc-950 p-2 sm:p-2 md:p-2 lg:p-2 xl:p-2.5 rounded-md sm:rounded-md md:rounded-lg lg:rounded-lg xl:rounded-lg disabled:opacity-50 sm:disabled:opacity-50 md:disabled:opacity-50 lg:disabled:opacity-50 xl:disabled:opacity-50 transition-colors sm:transition-colors md:transition-colors lg:transition-colors xl:transition-colors"
-                  title="Hapus Link"
-                >
-                  <IconTrash />
-                </button>
+            {urls.map((u) => {
+              // DETEKSI LOGIKA V1 ATAU V2
+              const isV2 = /^\d+$/.test(u.slug) || !!u.fake_url;
+              const shortUrl = `https://${siteConfig.domain}${isV2 ? '/go/' : '/'}${u.slug}`;
+              const displayUrl = `${siteConfig.domain}${isV2 ? '/go/' : '/'}${u.slug}`;
 
-                <div>
-                  {/* Judul & Favicon */}
-                  <div className="flex sm:flex md:flex lg:flex xl:flex items-center sm:items-center md:items-center lg:items-center xl:items-center gap-2 sm:gap-2 md:gap-3 lg:gap-3 xl:gap-3 mb-2 sm:mb-2 md:mb-3 lg:mb-3 xl:mb-4 pr-10 sm:pr-10 md:pr-12 lg:pr-12 xl:pr-14">
-                    <img 
-                      src={getFavicon(u.original_url) || "/favicon.ico"} 
-                      alt="Icon" 
-                      className="w-5 h-5 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-6 lg:h-6 xl:w-7 xl:h-7 rounded-sm sm:rounded-sm md:rounded-sm lg:rounded-md xl:rounded-md bg-white sm:bg-white md:bg-white lg:bg-white xl:bg-white p-0.5 sm:p-0.5 md:p-0.5 lg:p-0.5 xl:p-0.5 shrink-0 sm:shrink-0 md:shrink-0 lg:shrink-0 xl:shrink-0"
-                      onError={(e) => { e.currentTarget.style.display = 'none' }}
-                    />
-                    <h2 className="text-base sm:text-base md:text-lg lg:text-xl xl:text-xl font-bold sm:font-bold md:font-bold lg:font-bold xl:font-bold text-zinc-100 sm:text-zinc-100 md:text-zinc-100 lg:text-zinc-100 xl:text-zinc-100 truncate sm:truncate md:truncate lg:truncate xl:truncate">
-                      {getDomainName(u.original_url)}
-                    </h2>
-                  </div>
+              return (
+                <div key={u.id} className="relative sm:relative md:relative lg:relative xl:relative bg-zinc-900 sm:bg-zinc-900 md:bg-zinc-900 lg:bg-zinc-900 xl:bg-zinc-900 border sm:border md:border lg:border xl:border border-zinc-800 sm:border-zinc-800 md:border-zinc-800 lg:border-zinc-800 xl:border-zinc-800 rounded-xl sm:rounded-xl md:rounded-2xl lg:rounded-2xl xl:rounded-2xl p-4 sm:p-5 md:p-6 lg:p-6 xl:p-8 flex sm:flex md:flex lg:flex xl:flex flex-col sm:flex-col md:flex-col lg:flex-col xl:flex-col justify-between sm:justify-between md:justify-between lg:justify-between xl:justify-between hover:border-zinc-700 sm:hover:border-zinc-700 md:hover:border-zinc-700 lg:hover:border-zinc-700 xl:hover:border-zinc-700 transition-colors sm:transition-colors md:transition-colors lg:transition-colors xl:transition-colors group sm:group md:group lg:group xl:group">
+                  
+                  {/* Tombol Delete di Pojok Kanan Atas */}
+                  <button 
+                    onClick={() => handleDelete(u.id)}
+                    disabled={deletingId === u.id}
+                    className="absolute sm:absolute md:absolute lg:absolute xl:absolute top-4 sm:top-4 md:top-5 lg:top-5 xl:top-6 right-4 sm:right-4 md:right-5 lg:right-5 xl:right-6 text-zinc-500 sm:text-zinc-500 md:text-zinc-500 lg:text-zinc-500 xl:text-zinc-500 hover:text-rose-500 sm:hover:text-rose-500 md:hover:text-rose-500 lg:hover:text-rose-500 xl:hover:text-rose-500 bg-zinc-950 sm:bg-zinc-950 md:bg-zinc-950 lg:bg-zinc-950 xl:bg-zinc-950 p-2 sm:p-2 md:p-2 lg:p-2 xl:p-2.5 rounded-md sm:rounded-md md:rounded-lg lg:rounded-lg xl:rounded-lg disabled:opacity-50 sm:disabled:opacity-50 md:disabled:opacity-50 lg:disabled:opacity-50 xl:disabled:opacity-50 transition-colors sm:transition-colors md:transition-colors lg:transition-colors xl:transition-colors"
+                    title="Hapus Link"
+                  >
+                    <IconTrash />
+                  </button>
 
-                  {/* Original URL (Truncate) */}
-                  <p className="text-xs sm:text-xs md:text-sm lg:text-sm xl:text-base text-zinc-400 sm:text-zinc-400 md:text-zinc-400 lg:text-zinc-400 xl:text-zinc-400 truncate sm:truncate md:truncate lg:truncate xl:truncate mb-4 sm:mb-4 md:mb-5 lg:mb-5 xl:mb-6">
-                    {u.original_url}
-                  </p>
-
-                  {/* Short URL (Warna Biru Khas Link) */}
-                  <a href={`https://${siteConfig.domain}/${u.slug}`} target="_blank" rel="noreferrer" className="inline-block sm:inline-block md:inline-block lg:inline-block xl:inline-block text-sm sm:text-sm md:text-base lg:text-lg xl:text-lg font-medium sm:font-medium md:font-medium lg:font-medium xl:font-medium text-blue-400 sm:text-blue-400 md:text-blue-400 lg:text-blue-400 xl:text-blue-400 hover:text-blue-300 sm:hover:text-blue-300 md:hover:text-blue-300 lg:hover:text-blue-300 xl:hover:text-blue-300 mb-6 sm:mb-6 md:mb-8 lg:mb-8 xl:mb-8 truncate sm:truncate md:truncate lg:truncate xl:truncate max-w-full sm:max-w-full md:max-w-full lg:max-w-full xl:max-w-full bg-blue-500/10 sm:bg-blue-500/10 md:bg-blue-500/10 lg:bg-blue-500/10 xl:bg-blue-500/10 px-3 sm:px-3 md:px-4 lg:px-4 xl:px-4 py-1.5 sm:py-1.5 md:py-2 lg:py-2 xl:py-2 rounded-md sm:rounded-md md:rounded-md lg:rounded-lg xl:rounded-lg">
-                    {siteConfig.domain}/{u.slug}
-                  </a>
-                </div>
-
-                <div>
-                  {/* Info Row: Date & Hitcount */}
-                  <div className="flex sm:flex md:flex lg:flex xl:flex items-center sm:items-center md:items-center lg:items-center xl:items-center justify-between sm:justify-between md:justify-between lg:justify-between xl:justify-between text-[11px] sm:text-[11px] md:text-xs lg:text-sm xl:text-sm text-zinc-500 sm:text-zinc-500 md:text-zinc-500 lg:text-zinc-500 xl:text-zinc-500 mb-4 sm:mb-4 md:mb-5 lg:mb-5 xl:mb-6 px-1 sm:px-1 md:px-1 lg:px-1 xl:px-1">
-                    <div className="flex sm:flex md:flex lg:flex xl:flex items-center sm:items-center md:items-center lg:items-center xl:items-center gap-1.5 sm:gap-1.5 md:gap-2 lg:gap-2 xl:gap-2">
-                      <IconCalendar />
-                      <span>{new Date(u.created_at).toLocaleDateString('id-ID')}</span>
+                  <div>
+                    {/* LABEL V1/V2 (Ditambahkan tanpa merusak margin/layout) */}
+                    <div className="mb-3 sm:mb-3 md:mb-4 lg:mb-4 xl:mb-4 inline-flex sm:inline-flex md:inline-flex lg:inline-flex xl:inline-flex">
+                      <span className={`px-2.5 sm:px-2.5 md:px-3 lg:px-3 xl:px-3 py-1 sm:py-1 md:py-1 lg:py-1 xl:py-1 text-[10px] sm:text-[10px] md:text-xs lg:text-xs xl:text-xs font-bold sm:font-bold md:font-bold lg:font-bold xl:font-bold uppercase sm:uppercase md:uppercase lg:uppercase xl:uppercase tracking-wider sm:tracking-wider md:tracking-wider lg:tracking-wider xl:tracking-wider rounded-md sm:rounded-md md:rounded-md lg:rounded-md xl:rounded-md border sm:border md:border lg:border xl:border ${isV2 ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' : 'bg-blue-500/10 border-blue-500/30 text-blue-400'}`}>
+                        {isV2 ? '🕵️ V2 (Cloaking)' : '🚀 V1 (Safelink)'}
+                      </span>
                     </div>
-                    <div className="flex sm:flex md:flex lg:flex xl:flex items-center sm:items-center md:items-center lg:items-center xl:items-center gap-1.5 sm:gap-1.5 md:gap-2 lg:gap-2 xl:gap-2 font-medium sm:font-medium md:font-medium lg:font-medium xl:font-medium text-zinc-400 sm:text-zinc-400 md:text-zinc-400 lg:text-zinc-400 xl:text-zinc-400">
-                      <IconMiniClick />
-                      <span>{u.hitcount} Clicks</span>
+
+                    {/* Judul & Favicon */}
+                    <div className="flex sm:flex md:flex lg:flex xl:flex items-center sm:items-center md:items-center lg:items-center xl:items-center gap-2 sm:gap-2 md:gap-3 lg:gap-3 xl:gap-3 mb-2 sm:mb-2 md:mb-3 lg:mb-3 xl:mb-4 pr-10 sm:pr-10 md:pr-12 lg:pr-12 xl:pr-14">
+                      <img 
+                        src={getFavicon(u.original_url) || "/favicon.ico"} 
+                        alt="Icon" 
+                        className="w-5 h-5 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-6 lg:h-6 xl:w-7 xl:h-7 rounded-sm sm:rounded-sm md:rounded-sm lg:rounded-md xl:rounded-md bg-white sm:bg-white md:bg-white lg:bg-white xl:bg-white p-0.5 sm:p-0.5 md:p-0.5 lg:p-0.5 xl:p-0.5 shrink-0 sm:shrink-0 md:shrink-0 lg:shrink-0 xl:shrink-0"
+                        onError={(e) => { e.currentTarget.style.display = 'none' }}
+                      />
+                      <h2 className="text-base sm:text-base md:text-lg lg:text-xl xl:text-xl font-bold sm:font-bold md:font-bold lg:font-bold xl:font-bold text-zinc-100 sm:text-zinc-100 md:text-zinc-100 lg:text-zinc-100 xl:text-zinc-100 truncate sm:truncate md:truncate lg:truncate xl:truncate">
+                        {getDomainName(u.original_url)}
+                      </h2>
+                    </div>
+
+                    {/* Original URL (Truncate) */}
+                    <p className="text-xs sm:text-xs md:text-sm lg:text-sm xl:text-base text-zinc-400 sm:text-zinc-400 md:text-zinc-400 lg:text-zinc-400 xl:text-zinc-400 truncate sm:truncate md:truncate lg:truncate xl:truncate mb-1 sm:mb-1 md:mb-1 lg:mb-1 xl:mb-1">
+                      {u.original_url}
+                    </p>
+
+                    {/* Jika V2 tampilkan Fake URL-nya */}
+                    {isV2 && u.fake_url && (
+                      <p className="text-xs sm:text-xs md:text-xs lg:text-sm xl:text-sm text-emerald-400/80 sm:text-emerald-400/80 md:text-emerald-400/80 lg:text-emerald-400/80 xl:text-emerald-400/80 truncate sm:truncate md:truncate lg:truncate xl:truncate mb-3 sm:mb-3 md:mb-4 lg:mb-4 xl:mb-4">
+                        Fake: {u.fake_url}
+                      </p>
+                    )}
+                    {!(isV2 && u.fake_url) && <div className="mb-3 sm:mb-3 md:mb-4 lg:mb-4 xl:mb-4"></div>}
+
+                    {/* Short URL (Warna Biru Khas Link) */}
+                    <a href={shortUrl} target="_blank" rel="noreferrer" className="inline-block sm:inline-block md:inline-block lg:inline-block xl:inline-block text-sm sm:text-sm md:text-base lg:text-lg xl:text-lg font-medium sm:font-medium md:font-medium lg:font-medium xl:font-medium text-blue-400 sm:text-blue-400 md:text-blue-400 lg:text-blue-400 xl:text-blue-400 hover:text-blue-300 sm:hover:text-blue-300 md:hover:text-blue-300 lg:hover:text-blue-300 xl:hover:text-blue-300 mb-6 sm:mb-6 md:mb-8 lg:mb-8 xl:mb-8 truncate sm:truncate md:truncate lg:truncate xl:truncate max-w-full sm:max-w-full md:max-w-full lg:max-w-full xl:max-w-full bg-blue-500/10 sm:bg-blue-500/10 md:bg-blue-500/10 lg:bg-blue-500/10 xl:bg-blue-500/10 px-3 sm:px-3 md:px-4 lg:px-4 xl:px-4 py-1.5 sm:py-1.5 md:py-2 lg:py-2 xl:py-2 rounded-md sm:rounded-md md:rounded-md lg:rounded-lg xl:rounded-lg">
+                      {displayUrl}
+                    </a>
+                  </div>
+
+                  <div>
+                    {/* Info Row: Date & Hitcount */}
+                    <div className="flex sm:flex md:flex lg:flex xl:flex items-center sm:items-center md:items-center lg:items-center xl:items-center justify-between sm:justify-between md:justify-between lg:justify-between xl:justify-between text-[11px] sm:text-[11px] md:text-xs lg:text-sm xl:text-sm text-zinc-500 sm:text-zinc-500 md:text-zinc-500 lg:text-zinc-500 xl:text-zinc-500 mb-4 sm:mb-4 md:mb-5 lg:mb-5 xl:mb-6 px-1 sm:px-1 md:px-1 lg:px-1 xl:px-1">
+                      <div className="flex sm:flex md:flex lg:flex xl:flex items-center sm:items-center md:items-center lg:items-center xl:items-center gap-1.5 sm:gap-1.5 md:gap-2 lg:gap-2 xl:gap-2">
+                        <IconCalendar />
+                        <span>{new Date(u.created_at).toLocaleDateString('id-ID')}</span>
+                      </div>
+                      <div className="flex sm:flex md:flex lg:flex xl:flex items-center sm:items-center md:items-center lg:items-center xl:items-center gap-1.5 sm:gap-1.5 md:gap-2 lg:gap-2 xl:gap-2 font-medium sm:font-medium md:font-medium lg:font-medium xl:font-medium text-zinc-400 sm:text-zinc-400 md:text-zinc-400 lg:text-zinc-400 xl:text-zinc-400">
+                        <IconMiniClick />
+                        <span>{u.hitcount} Clicks</span>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons (Show QR & Copy) */}
+                    <div className="flex sm:flex md:flex lg:flex xl:flex gap-2 sm:gap-3 md:gap-3 lg:gap-4 xl:gap-4 border-t sm:border-t md:border-t lg:border-t xl:border-t border-zinc-800 sm:border-zinc-800 md:border-zinc-800 lg:border-zinc-800 xl:border-zinc-800 pt-4 sm:pt-4 md:pt-5 lg:pt-5 xl:pt-6">
+                      <button 
+                        onClick={() => downloadQR(u.slug, isV2)}
+                        className="flex-1 sm:flex-1 md:flex-1 lg:flex-1 xl:flex-1 flex sm:flex md:flex lg:flex xl:flex justify-center sm:justify-center md:justify-center lg:justify-center xl:justify-center items-center sm:items-center md:items-center lg:items-center xl:items-center gap-2 sm:gap-2 md:gap-2 lg:gap-2 xl:gap-3 bg-zinc-800 sm:bg-zinc-800 md:bg-zinc-800 lg:bg-zinc-800 xl:bg-zinc-800 hover:bg-zinc-700 sm:hover:bg-zinc-700 md:hover:bg-zinc-700 lg:hover:bg-zinc-700 xl:hover:bg-zinc-700 text-zinc-300 sm:text-zinc-300 md:text-zinc-300 lg:text-zinc-300 xl:text-zinc-300 text-xs sm:text-xs md:text-sm lg:text-sm xl:text-base font-medium sm:font-medium md:font-medium lg:font-medium xl:font-medium py-2 sm:py-2 md:py-2.5 lg:py-2.5 xl:py-3 rounded-md sm:rounded-md md:rounded-lg lg:rounded-lg xl:rounded-lg transition-colors sm:transition-colors md:transition-colors lg:transition-colors xl:transition-colors"
+                      >
+                        <IconQR />
+                        Show QR
+                      </button>
+                      <button 
+                        onClick={() => handleCopy(u.slug, u.id, isV2)}
+                        className="flex-1 sm:flex-1 md:flex-1 lg:flex-1 xl:flex-1 flex sm:flex md:flex lg:flex xl:flex justify-center sm:justify-center md:justify-center lg:justify-center xl:justify-center items-center sm:items-center md:items-center lg:items-center xl:items-center gap-2 sm:gap-2 md:gap-2 lg:gap-2 xl:gap-3 bg-zinc-800 sm:bg-zinc-800 md:bg-zinc-800 lg:bg-zinc-800 xl:bg-zinc-800 hover:bg-zinc-700 sm:hover:bg-zinc-700 md:hover:bg-zinc-700 lg:hover:bg-zinc-700 xl:hover:bg-zinc-700 text-zinc-300 sm:text-zinc-300 md:text-zinc-300 lg:text-zinc-300 xl:text-zinc-300 text-xs sm:text-xs md:text-sm lg:text-sm xl:text-base font-medium sm:font-medium md:font-medium lg:font-medium xl:font-medium py-2 sm:py-2 md:py-2.5 lg:py-2.5 xl:py-3 rounded-md sm:rounded-md md:rounded-lg lg:rounded-lg xl:rounded-lg transition-colors sm:transition-colors md:transition-colors lg:transition-colors xl:transition-colors"
+                      >
+                        {copiedId === u.id ? <IconCheck /> : <IconCopy />}
+                        {copiedId === u.id ? "Copied!" : "Copy URL"}
+                      </button>
                     </div>
                   </div>
 
-                  {/* Action Buttons (Show QR & Copy) */}
-                  <div className="flex sm:flex md:flex lg:flex xl:flex gap-2 sm:gap-3 md:gap-3 lg:gap-4 xl:gap-4 border-t sm:border-t md:border-t lg:border-t xl:border-t border-zinc-800 sm:border-zinc-800 md:border-zinc-800 lg:border-zinc-800 xl:border-zinc-800 pt-4 sm:pt-4 md:pt-5 lg:pt-5 xl:pt-6">
-                    <button 
-                      onClick={() => downloadQR(u.slug)}
-                      className="flex-1 sm:flex-1 md:flex-1 lg:flex-1 xl:flex-1 flex sm:flex md:flex lg:flex xl:flex justify-center sm:justify-center md:justify-center lg:justify-center xl:justify-center items-center sm:items-center md:items-center lg:items-center xl:items-center gap-2 sm:gap-2 md:gap-2 lg:gap-2 xl:gap-3 bg-zinc-800 sm:bg-zinc-800 md:bg-zinc-800 lg:bg-zinc-800 xl:bg-zinc-800 hover:bg-zinc-700 sm:hover:bg-zinc-700 md:hover:bg-zinc-700 lg:hover:bg-zinc-700 xl:hover:bg-zinc-700 text-zinc-300 sm:text-zinc-300 md:text-zinc-300 lg:text-zinc-300 xl:text-zinc-300 text-xs sm:text-xs md:text-sm lg:text-sm xl:text-base font-medium sm:font-medium md:font-medium lg:font-medium xl:font-medium py-2 sm:py-2 md:py-2.5 lg:py-2.5 xl:py-3 rounded-md sm:rounded-md md:rounded-lg lg:rounded-lg xl:rounded-lg transition-colors sm:transition-colors md:transition-colors lg:transition-colors xl:transition-colors"
-                    >
-                      <IconQR />
-                      Show QR
-                    </button>
-                    <button 
-                      onClick={() => handleCopy(u.slug, u.id)}
-                      className="flex-1 sm:flex-1 md:flex-1 lg:flex-1 xl:flex-1 flex sm:flex md:flex lg:flex xl:flex justify-center sm:justify-center md:justify-center lg:justify-center xl:justify-center items-center sm:items-center md:items-center lg:items-center xl:items-center gap-2 sm:gap-2 md:gap-2 lg:gap-2 xl:gap-3 bg-zinc-800 sm:bg-zinc-800 md:bg-zinc-800 lg:bg-zinc-800 xl:bg-zinc-800 hover:bg-zinc-700 sm:hover:bg-zinc-700 md:hover:bg-zinc-700 lg:hover:bg-zinc-700 xl:hover:bg-zinc-700 text-zinc-300 sm:text-zinc-300 md:text-zinc-300 lg:text-zinc-300 xl:text-zinc-300 text-xs sm:text-xs md:text-sm lg:text-sm xl:text-base font-medium sm:font-medium md:font-medium lg:font-medium xl:font-medium py-2 sm:py-2 md:py-2.5 lg:py-2.5 xl:py-3 rounded-md sm:rounded-md md:rounded-lg lg:rounded-lg xl:rounded-lg transition-colors sm:transition-colors md:transition-colors lg:transition-colors xl:transition-colors"
-                    >
-                      {copiedId === u.id ? <IconCheck /> : <IconCopy />}
-                      {copiedId === u.id ? "Copied!" : "Copy URL"}
-                    </button>
-                  </div>
                 </div>
-
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

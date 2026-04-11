@@ -9,6 +9,12 @@ export async function GET(
 ) {
   const { slug } = params;
 
+  // --- TEMBOK PEMISAH V1 & V2 ---
+  // Kalau slug BUKAN ANGKA, berarti ini milik V1. Tendang balik ke rute utama (Safelink)!
+  if (!/^\d+$/.test(slug)) {
+    return Response.redirect(new URL(`/${slug}`, request.url), 301);
+  }
+
   // 1. Ambil data dari database
   const { data: urlData, error } = await supabase
     .from('urls')

@@ -107,7 +107,7 @@ function ListContent() {
         
         <div>
           <h1 className="text-3xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-5xl font-bold sm:font-bold md:font-bold lg:font-bold xl:font-bold bg-gradient-to-r sm:bg-gradient-to-r md:bg-gradient-to-r lg:bg-gradient-to-r xl:bg-gradient-to-r from-blue-400 sm:from-blue-400 md:from-blue-400 lg:from-blue-400 xl:from-blue-400 to-indigo-500 sm:to-indigo-500 md:to-indigo-500 lg:to-indigo-500 xl:to-indigo-500 bg-clip-text sm:bg-clip-text md:bg-clip-text lg:bg-clip-text xl:bg-clip-text text-transparent sm:text-transparent md:text-transparent lg:text-transparent xl:text-transparent mb-2 sm:mb-2 md:mb-3 lg:mb-3 xl:mb-4">
-            Dashboard Link
+            Dashboard Links
           </h1>
           <p className="text-sm sm:text-sm md:text-base lg:text-lg xl:text-xl text-zinc-400 sm:text-zinc-400 md:text-zinc-400 lg:text-zinc-400 xl:text-zinc-400">
             Below is a list of the links you have created.
@@ -121,7 +121,7 @@ function ListContent() {
               <IconLink />
             </div>
             <div>
-              <p className="text-xs sm:text-xs md:text-sm lg:text-sm xl:text-base text-zinc-500 sm:text-zinc-500 md:text-zinc-500 lg:text-zinc-500 xl:text-zinc-500 font-semibold sm:font-semibold md:font-semibold lg:font-semibold xl:font-semibold uppercase sm:uppercase md:uppercase lg:uppercase xl:uppercase tracking-wider sm:tracking-wider md:tracking-wider lg:tracking-wider xl:tracking-wider">Total Link</p>
+              <p className="text-xs sm:text-xs md:text-sm lg:text-sm xl:text-base text-zinc-500 sm:text-zinc-500 md:text-zinc-500 lg:text-zinc-500 xl:text-zinc-500 font-semibold sm:font-semibold md:font-semibold lg:font-semibold xl:font-semibold uppercase sm:uppercase md:uppercase lg:uppercase xl:uppercase tracking-wider sm:tracking-wider md:tracking-wider lg:tracking-wider xl:tracking-wider">Total Links</p>
               <p className="text-2xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-4xl font-black sm:font-black md:font-black lg:font-black xl:font-black text-white sm:text-white md:text-white lg:text-white xl:text-white">{totalLinks}</p>
             </div>
           </div>
@@ -132,7 +132,7 @@ function ListContent() {
               <IconClick />
             </div>
             <div>
-              <p className="text-xs sm:text-xs md:text-sm lg:text-sm xl:text-base text-zinc-500 sm:text-zinc-500 md:text-zinc-500 lg:text-zinc-500 xl:text-zinc-500 font-semibold sm:font-semibold md:font-semibold lg:font-semibold xl:font-semibold uppercase sm:uppercase md:uppercase lg:uppercase xl:uppercase tracking-wider sm:tracking-wider md:tracking-wider lg:tracking-wider xl:tracking-wider">Total Klik</p>
+              <p className="text-xs sm:text-xs md:text-sm lg:text-sm xl:text-base text-zinc-500 sm:text-zinc-500 md:text-zinc-500 lg:text-zinc-500 xl:text-zinc-500 font-semibold sm:font-semibold md:font-semibold lg:font-semibold xl:font-semibold uppercase sm:uppercase md:uppercase lg:uppercase xl:uppercase tracking-wider sm:tracking-wider md:tracking-wider lg:tracking-wider xl:tracking-wider">Total Clicks</p>
               <p className="text-2xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-4xl font-black sm:font-black md:font-black lg:font-black xl:font-black text-rose-500 sm:text-rose-500 md:text-rose-500 lg:text-rose-500 xl:text-rose-500">{totalClicks}</p>
             </div>
           </div>

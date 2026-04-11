@@ -3,11 +3,12 @@ import { notFound } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { siteConfig } from '@/config/site';
 
-// Wajib ditambahin biar Next.js tau ini halaman dinamis (gak di-cache) buat ngitung hitcount
+// Wajib: Biar Next.js gak nge-cache halaman ini & hitcount jalan mulus
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const { data } = await supabase.from('urls').select('original_url').eq('slug', params.slug).single();
+  // Pake maybeSingle biar ga crash kalau link ga ketemu
+  const { data } = await supabase.from('urls').select('original_url').eq('slug', params.slug).maybeSingle();
   
   if (!data) return { title: 'Not Found' };
 
@@ -30,25 +31,31 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 }
 
 export default async function SafelinkPage({ params }: { params: { slug: string } }) {
-  // Ambil data URL
+  // 1. Ambil data URL (Pake maybeSingle biar aman dari error 500)
   const { data: urlData, error } = await supabase
     .from('urls')
     .select('*')
     .eq('slug', params.slug)
-    .single();
+    .maybeSingle();
 
   if (error || !urlData) {
     notFound(); 
   }
 
-  // Tambahin hitcount di background (Aman karena udah force-dynamic)
-  await supabase.from('urls').update({ hitcount: urlData.hitcount + 1 }).eq('id', urlData.id);
+  // 2. Tambahin hitcount di background (Aman)
+  await supabase
+    .from('urls')
+    .update({ hitcount: (urlData.hitcount || 0) + 1 })
+    .eq('id', urlData.id);
 
-  // Ambil data Setting (Dibikin anti-crash kalau database setting masih kosong)
-  const { data: settingsData } = await supabase.from('settings').select('*').eq('id', 1);
-  const settings = settingsData?.[0] || null;
+  // 3. Ambil data Setting (Pake maybeSingle biar KEBAL walau tabel kosong)
+  const { data: settings } = await supabase
+    .from('settings')
+    .select('*')
+    .eq('id', 1)
+    .maybeSingle();
 
-  // Ekstrak domain buat ditampilin
+  // 4. Ekstrak domain buat ditampilin
   let domainName = urlData.original_url;
   try {
     domainName = new URL(urlData.original_url).hostname;

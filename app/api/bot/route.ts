@@ -2,71 +2,63 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { siteConfig } from '@/config/site';
 
-function generateSlug() {
-  return Math.random().toString(36).substring(2, 8);
+// Fungsi generate slug: Teks buat V1, Angka buat V2
+function generateSlug(isV2 = false) {
+  if (isV2) return Math.floor(100000 + Math.random() * 900000).toString(); // Angka 6 digit
+  return Math.random().toString(36).substring(2, 8); // Teks random
 }
 
 export async function POST(req: Request) {
   try {
     const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
     const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_TOKEN}`;
-
     const body = await req.json();
 
-    // 1. TANGANI KLIK TOMBOL
+    // 1. TANGANI CALLBACK QUERY (TOMBOL)
     if (body.callback_query) {
       const chatId = body.callback_query.message.chat.id;
       const data = body.callback_query.data;
-      const firstName = body.callback_query.from?.first_name || 'Kak';
 
-      if (data === 'new_link') {
+      if (data === 'start_v1') {
         await fetch(`${TELEGRAM_API}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: `👇 Silakan kirimkan link panjang yang baru, ${firstName}:`
-          })
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text: "🚀 **MODE V1 (Standard)**\nPlease send your long URL:" })
+        });
+      }
+
+      if (data === 'start_v2') {
+        // Kita simpan status di DB kalau user ini lagi memulai proses V2
+        // Kita pake trik: simpan chat_id dengan original_url "WAITING_FAKE"
+        await supabase.from('urls').delete().eq('chat_id', chatId.toString()).eq('original_url', 'WAITING_FAKE');
+        await supabase.from('urls').insert([{ chat_id: chatId.toString(), original_url: 'WAITING_FAKE', slug: 'STATE' }]);
+
+        await fetch(`${TELEGRAM_API}/sendMessage`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text: "🕵️ **MODE V2 (Cloaking)**\nStep 1: Please send the **FAKE LINK** (The one for social media preview):" })
         });
       }
       return NextResponse.json({ status: 'ok' });
     }
 
     const message = body.message;
-
-    // 2. CEK KALAU BUKAN PESAN TEKS (Misal: Stiker, Foto, File)
-    if (!message || !message.text) {
-      if (message && message.chat) {
-        await fetch(`${TELEGRAM_API}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: message.chat.id, text: '⚠️ Maaf, bot ini cuma bisa memproses pesan teks berupa link ya!' })
-        });
-      }
-      return NextResponse.json({ status: 'ok' });
-    }
+    if (!message || !message.text) return NextResponse.json({ status: 'ok' });
 
     const chatId = message.chat.id;
-    // Hapus spasi di awal dan akhir teks (Fix masalah spasi)
-    const text = message.text.trim(); 
-    const firstName = message.from?.first_name || 'Kak';
+    const text = message.text.trim();
+    const firstName = message.from?.first_name || 'Admin';
 
-    // 3. TANGANI COMMAND /start (Sekalian bawa ID user di link tombol)
+    // 2. COMMAND /START
     if (text === '/start') {
-      const welcomeMsg = `Halo ${firstName}! 👋\n\nSelamat datang di bot ${siteConfig.name}.\nKirimkan link panjang kamu dan bot akan langsung memendekkannya.`;
-      
       await fetch(`${TELEGRAM_API}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           chat_id: chatId, 
-          text: welcomeMsg,
+          text: `Hello ${firstName}! Choose your shortening method:`,
           reply_markup: {
             inline_keyboard: [
-              [
-                { text: '📋 List URLs', url: `https://${siteConfig.domain}/list?user=${chatId}` },
-                { text: '⚙️ Settings', url: `https://${siteConfig.domain}/settings?user=${chatId}` }
-              ]
+              [{ text: '🚀 Shorten V1 (Standard)', callback_data: 'start_v1' }],
+              [{ text: '🕵️ Shorten V2 (Cloaking)', callback_data: 'start_v2' }],
+              [{ text: '📋 List URLs', url: `https://${siteConfig.domain}/list?user=${chatId}` }]
             ]
           }
         })
@@ -74,84 +66,59 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: 'ok' });
     }
 
-    // 4. CEK EMOJI (Pake Regex klasik tanpa flag /u biar lolos Vercel Build ES5)
-    const emojiRegex = /([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/;
-    if (emojiRegex.test(text)) {
+    // 3. LOGIKA STEP-BY-STEP V2
+    // Cek apakah user sedang ditunggu Fake Link-nya
+    const { data: stateFake } = await supabase.from('urls').select('*').eq('chat_id', chatId.toString()).eq('original_url', 'WAITING_FAKE').single();
+    
+    if (stateFake) {
+      // User ngirim Fake Link, sekarang update status jadi nunggu Destination Link
+      await supabase.from('urls').update({ original_url: 'WAITING_DEST', fake_url: text }).eq('id', stateFake.id);
       await fetch(`${TELEGRAM_API}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: `⚠️ ${firstName}, tolong jangan gunakan emoji pada link ya!` })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: "✅ Fake Link saved!\nStep 2: Now send the **DESTINATION LINK** (Your real link):" })
       });
       return NextResponse.json({ status: 'ok' });
     }
 
-    // 5. VALIDASI URL KETAT (Mastiin beneran link)
-    let isValidUrl = false;
-    try {
-      const parsedUrl = new URL(text);
-      if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
-        isValidUrl = true;
-      }
-    } catch (e) {
-      isValidUrl = false;
-    }
-
-    if (!isValidUrl) {
+    // Cek apakah user sedang ditunggu Destination Link-nya
+    const { data: stateDest } = await supabase.from('urls').select('*').eq('chat_id', chatId.toString()).eq('original_url', 'WAITING_DEST').single();
+    
+    if (stateDest) {
+      const slugV2 = generateSlug(true);
+      await supabase.from('urls').update({ original_url: text, slug: slugV2 }).eq('id', stateDest.id);
+      
       await fetch(`${TELEGRAM_API}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: `⚠️ ${firstName}, kirim URL yang valid (harus diawali http:// atau https:// tanpa embel-embel lain).` })
-      });
-      return NextResponse.json({ status: 'ok' });
-    }
-
-    // 6. KIRIM PESAN PROGRES
-    const progressRes = await fetch(`${TELEGRAM_API}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: `⏳ Tunggu sebentar ya ${firstName}, sedang memproses...` })
-    });
-    const progressData = await progressRes.json();
-    const messageId = progressData.result?.message_id;
-
-    // 7. PROSES DB SUPABASE (Sekalian insert chat_id biar privasi terjaga)
-    const slug = generateSlug();
-    const { error } = await supabase
-      .from('urls')
-      .insert([{ 
-        slug, 
-        original_url: text,
-        chat_id: chatId.toString() 
-      }]);
-
-    // 8. SIAPKAN PESAN HASIL & TOMBOL
-    const replyText = error 
-      ? `❌ Maaf ${firstName}, gagal membuat short URL.`
-      : `✅ Sukses dipendekkan, ${firstName}!\n\n🔗 Short URL: https://${siteConfig.domain}/${slug}`;
-
-    const replyMarkup = error ? {} : {
-      inline_keyboard: [
-        [{ text: '➕ Buat Link Baru', callback_data: 'new_link' }]
-      ]
-    };
-
-    // 9. UBAH PESAN PROGRES JADI HASIL FINAL
-    if (messageId) {
-      await fetch(`${TELEGRAM_API}/editMessageText`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           chat_id: chatId, 
-          message_id: messageId,
-          text: replyText, 
-          disable_web_page_preview: true,
-          reply_markup: replyMarkup
+          text: `✅ **V2 SUCCESS!**\n\n🔗 Short Link: https://${siteConfig.domain}/go/${slugV2}\n\nPreview will show: ${stateDest.fake_url}`,
+          disable_web_page_preview: true
+        })
+      });
+      return NextResponse.json({ status: 'ok' });
+    }
+
+    // 4. PROSES V1 (DEFAULT JIKA TIDAK DALAM PROSES V2)
+    const slugV1 = generateSlug(false);
+    const { error } = await supabase.from('urls').insert([{ 
+      slug: slugV1, 
+      original_url: text,
+      chat_id: chatId.toString() 
+    }]);
+
+    if (!error) {
+      await fetch(`${TELEGRAM_API}/sendMessage`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          chat_id: chatId, 
+          text: `✅ **V1 SUCCESS!**\n\n🔗 Short Link: https://${siteConfig.domain}/${slugV1}`,
+          disable_web_page_preview: true
         })
       });
     }
 
     return NextResponse.json({ status: 'ok' });
   } catch (error) {
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'error' }, { status: 500 });
   }
 }

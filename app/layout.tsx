@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { siteConfig } from '@/config/site';
+import Script from 'next/script';
 
 export const metadata: Metadata = {
   // SEO DASAR
@@ -69,6 +70,19 @@ export default function RootLayout({
     <html lang="en" className="scroll-smooth">
       <body className="antialiased bg-[#121212] selection:bg-indigo-500/30">
         {children}
+       {/* 2. SCRIPT TELEGRAM MINI APP (Wajib di awal) */}
+        <Script 
+          src="https://telegram.org/js/telegram-web-app.js" 
+          strategy="beforeInteractive" 
+        />
+        
+        {/* 3. SCRIPT MONETAG */}
+        <Script 
+          src="//libtl.com/sdk.js" 
+          strategy="afterInteractive" 
+          data-zone="10862751" 
+          data-sdk="show_10862751" 
+        />
       </body>
     </html>
   );

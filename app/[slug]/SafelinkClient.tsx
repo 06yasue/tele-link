@@ -2,6 +2,13 @@
 
 import { useState, useEffect } from "react";
 
+// Supaya Typescript gak error pas manggil window.show_10862751
+declare global {
+  interface Window {
+    show_10862751?: () => Promise<void>;
+  }
+}
+
 export default function SafelinkClient({ 
   originalUrl, 
   settings,
@@ -13,6 +20,7 @@ export default function SafelinkClient({
 }) {
   const [phase, setPhase] = useState(1);
   const [timeLeft, setTimeLeft] = useState(5);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -24,14 +32,35 @@ export default function SafelinkClient({
     return () => clearTimeout(timer);
   }, [phase, timeLeft]);
 
+  // LOGIKA KOMBINASI IKLAN + GET LINK
+  const handleGetLink = () => {
+    setIsGenerating(true);
+
+    // Cek apakah script iklan Monetag udah siap di browser
+    if (typeof window !== 'undefined' && typeof window.show_10862751 === 'function') {
+      window.show_10862751()
+        .then(() => {
+          // Iklan beres ditonton/diclose, langsung lempar ke tujuan
+          window.location.href = originalUrl;
+        })
+        .catch((e) => {
+          // Kalau iklan gagal load (misal kena Adblock), tetep jalan ke tujuan
+          window.location.href = originalUrl;
+        });
+    } else {
+      // Script iklan gak nemu, langsung gas aja ke link asli
+      window.location.href = originalUrl;
+    }
+  };
+
   return (
     <div className="w-full max-w-2xl mx-auto z-20 px-2 sm:px-0">
       
-      {/* BOX 3D TIMBUL (Neo-Brutalism Design) */}
-      <div className="bg-[#1e1e20] border-2 border-[#3f3f46] rounded-2xl p-6 md:p-10 shadow-[6px_6px_0px_0px_#3f3f46] sm:shadow-[10px_10px_0px_0px_#3f3f46] flex flex-col items-center text-center">
+      {/* TAMPILAN RAPIH: bg-zinc-900, border-zinc-800, TANPA 3D BOX */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 md:p-10 flex flex-col items-center text-center">
 
         {/* TITLE DARI LINK TUJUAN (TANPA GAMBAR) */}
-        <div className="mb-8 w-full bg-[#121212] border border-[#27272a] rounded-xl p-4 shadow-inner flex items-center justify-center min-h-[80px]">
+        <div className="mb-8 w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 flex items-center justify-center min-h-[80px]">
           <h2 className="text-lg md:text-xl font-bold text-zinc-100 line-clamp-2">
             {title}
           </h2>
@@ -49,10 +78,9 @@ export default function SafelinkClient({
               Please click the button below to securely proceed to the destination page.
             </p>
 
-            {/* Tombol 3D bisa dipencet */}
             <button 
               onClick={() => setPhase(2)}
-              className="w-full sm:w-auto min-w-[280px] bg-indigo-600 border-2 border-indigo-800 text-white font-bold text-lg py-4 px-10 rounded-xl uppercase tracking-wider transition-all shadow-[0px_6px_0px_0px_#3730a3] active:shadow-[0px_0px_0px_0px_#3730a3] active:translate-y-[6px]"
+              className="w-full sm:w-auto min-w-[280px] bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-lg py-4 px-10 rounded-xl uppercase tracking-wider transition-colors"
             >
               Continue
             </button>
@@ -91,13 +119,22 @@ export default function SafelinkClient({
               Your link is ready!
             </p>
 
-            <a 
-              href={originalUrl}
-              className="w-full sm:w-auto min-w-[280px] bg-emerald-600 border-2 border-emerald-800 text-white font-bold text-lg py-4 px-10 rounded-xl uppercase tracking-wider transition-all shadow-[0px_6px_0px_0px_#047857] active:shadow-[0px_0px_0px_0px_#047857] active:translate-y-[6px] text-center flex justify-center items-center gap-2"
+            <button 
+              onClick={handleGetLink}
+              disabled={isGenerating}
+              className={`w-full sm:w-auto min-w-[280px] font-bold text-lg py-4 px-10 rounded-xl uppercase tracking-wider transition-colors text-center flex justify-center items-center gap-2 ${
+                isGenerating 
+                  ? 'bg-emerald-600/50 text-white/70 cursor-wait' 
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+              }`}
             >
-              Get Link
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-            </a>
+              {isGenerating ? 'Processing...' : 'Get Link'}
+              {!isGenerating && (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              )}
+            </button>
           </div>
         )}
 

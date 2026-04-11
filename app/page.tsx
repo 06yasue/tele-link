@@ -1,5 +1,6 @@
 import { siteConfig } from '@/config/site';
 import { supabase } from '@/lib/supabase';
+import Script from 'next/script'; // 1. Tambahin import ini buat ngejalanin script iklan
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -123,6 +124,21 @@ export default async function HomePage() {
           &copy; {new Date().getFullYear()} {siteConfig.name}. All rights reserved. Built for creators.
         </div>
       </footer>
+
+      {/* 2. SCRIPT IKLAN MONETAG KHUSUS HALAMAN INI */}
+      <Script id="monetag-interstitial" strategy="afterInteractive">
+        {`
+          // Loop pengecekan: Nunggu sampai library Monetag (dari layout.tsx) selesai di-load
+          var checkMonetagInterval = setInterval(function() {
+            if (typeof show_10862751 === 'function') {
+              // Kalau fungsinya udah ada, jalanin iklannya
+              show_10862751({ type: 'inApp', inAppSettings: { frequency: 2, capping: 0.1, interval: 30, timeout: 5, everyPage: false } });
+              // Hentikan loop pengecekan
+              clearInterval(checkMonetagInterval);
+            }
+          }, 500); // Ngecek setiap 0.5 detik
+        `}
+      </Script>
 
     </div>
   );

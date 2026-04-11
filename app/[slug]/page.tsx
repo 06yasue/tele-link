@@ -3,7 +3,9 @@ import { notFound } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { siteConfig } from '@/config/site';
 
-// 1. FUNGSI INI BUAT BIKIN TAMPILAN META TAG PAS DI-SHARE KE SOSMED
+// Wajib ditambahin biar Next.js tau ini halaman dinamis (gak di-cache) buat ngitung hitcount
+export const dynamic = 'force-dynamic';
+
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const { data } = await supabase.from('urls').select('original_url').eq('slug', params.slug).single();
   
@@ -11,7 +13,6 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 
   try {
     const domain = new URL(data.original_url).hostname;
-    // Ngambil logo HD dari domain tujuan secara otomatis tanpa scraping webnya
     const imageUrl = `https://logo.clearbit.com/${domain}`; 
 
     return {
@@ -28,7 +29,6 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   }
 }
 
-// 2. TAMPILAN HALAMAN SAFELINK-NYA
 export default async function SafelinkPage({ params }: { params: { slug: string } }) {
   // Ambil data URL
   const { data: urlData, error } = await supabase
@@ -38,14 +38,15 @@ export default async function SafelinkPage({ params }: { params: { slug: string 
     .single();
 
   if (error || !urlData) {
-    notFound(); // Lempar ke halaman 404 merah kalau link gak ada
+    notFound(); 
   }
 
-  // Tambahin hitcount di background
+  // Tambahin hitcount di background (Aman karena udah force-dynamic)
   await supabase.from('urls').update({ hitcount: urlData.hitcount + 1 }).eq('id', urlData.id);
 
-  // Ambil data Setting (Buat Iklan)
-  const { data: settings } = await supabase.from('settings').select('*').eq('id', 1).single();
+  // Ambil data Setting (Dibikin anti-crash kalau database setting masih kosong)
+  const { data: settingsData } = await supabase.from('settings').select('*').eq('id', 1);
+  const settings = settingsData?.[0] || null;
 
   // Ekstrak domain buat ditampilin
   let domainName = urlData.original_url;
@@ -56,7 +57,7 @@ export default async function SafelinkPage({ params }: { params: { slug: string 
   return (
     <div className="min-h-screen sm:min-h-screen md:min-h-screen lg:min-h-screen xl:min-h-screen bg-zinc-950 sm:bg-zinc-950 md:bg-zinc-950 lg:bg-zinc-950 xl:bg-zinc-950 text-white sm:text-white md:text-white lg:text-white xl:text-white flex sm:flex md:flex lg:flex xl:flex flex-col sm:flex-col md:flex-col lg:flex-col xl:flex-col items-center sm:items-center md:items-center lg:items-center xl:items-center py-10 sm:py-10 md:py-12 lg:py-16 xl:py-20 px-4 sm:px-4 md:px-6 lg:px-8 xl:px-10">
       
-      {/* 🟢 INJEKSI ADS HEAD (Ditaruh tersembunyi di atas) */}
+      {/* 🟢 INJEKSI ADS HEAD */}
       {settings?.ads_head && (
         <div className="hidden" dangerouslySetInnerHTML={{ __html: settings.ads_head }} />
       )}
@@ -97,7 +98,7 @@ export default async function SafelinkPage({ params }: { params: { slug: string 
           <div className="w-full sm:w-full md:w-full lg:w-full xl:w-full my-4 sm:my-4 md:my-5 lg:my-6 xl:my-6 flex justify-center" dangerouslySetInnerHTML={{ __html: settings.ads_native }} />
         )}
 
-        {/* MOCKUP RECAPTCHA (Tempat Nanti) */}
+        {/* MOCKUP RECAPTCHA */}
         <div className="w-full sm:w-full md:w-full lg:w-full xl:w-full bg-zinc-950 sm:bg-zinc-950 md:bg-zinc-950 lg:bg-zinc-950 xl:bg-zinc-950 border-2 sm:border-2 md:border-2 lg:border-2 xl:border-2 border-dashed sm:border-dashed md:border-dashed lg:border-dashed xl:border-dashed border-zinc-700 sm:border-zinc-700 md:border-zinc-700 lg:border-zinc-700 xl:border-zinc-700 rounded-xl sm:rounded-xl md:rounded-xl lg:rounded-xl xl:rounded-xl p-6 sm:p-6 md:p-8 lg:p-8 xl:p-8 mb-6 sm:mb-6 md:mb-8 lg:mb-8 xl:mb-8 flex sm:flex md:flex lg:flex xl:flex items-center sm:items-center md:items-center lg:items-center xl:items-center justify-center sm:justify-center md:justify-center lg:justify-center xl:justify-center flex-col sm:flex-col md:flex-col lg:flex-col xl:flex-col gap-2 sm:gap-2 md:gap-3 lg:gap-3 xl:gap-3">
           <svg className="w-8 h-8 sm:w-8 sm:h-8 md:w-10 md:h-10 lg:w-12 lg:h-12 xl:w-12 xl:h-12 text-zinc-600 sm:text-zinc-600 md:text-zinc-600 lg:text-zinc-600 xl:text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
           <span className="text-xs sm:text-xs md:text-sm lg:text-sm xl:text-base text-zinc-500 sm:text-zinc-500 md:text-zinc-500 lg:text-zinc-500 xl:text-zinc-500 font-medium sm:font-medium md:font-medium lg:font-medium xl:font-medium">Tempat Google reCAPTCHA</span>
@@ -112,14 +113,11 @@ export default async function SafelinkPage({ params }: { params: { slug: string 
         </a>
       </div>
 
-      {/* 🟢 INJEKSI ADS KHUSUS DEVICE (Media Query Bawaan Tailwind) */}
+      {/* 🟢 INJEKSI ADS KHUSUS DEVICE */}
       <div className="w-full sm:w-full md:w-full lg:w-full xl:w-full max-w-2xl sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mt-8 sm:mt-8 md:mt-10 lg:mt-10 xl:mt-12 flex justify-center">
-        {/* Iklan ini cuma muncul di HP (layar kecil) */}
         {settings?.ads_mobile && (
           <div className="block sm:block md:hidden lg:hidden xl:hidden w-full text-center" dangerouslySetInnerHTML={{ __html: settings.ads_mobile }} />
         )}
-        
-        {/* Iklan ini cuma muncul di Desktop/Tablet (layar menengah ke atas) */}
         {settings?.ads_desktop && (
           <div className="hidden sm:hidden md:block lg:block xl:block w-full text-center" dangerouslySetInnerHTML={{ __html: settings.ads_desktop }} />
         )}

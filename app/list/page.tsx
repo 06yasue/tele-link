@@ -110,7 +110,7 @@ function ListContent() {
             Dashboard Link
           </h1>
           <p className="text-sm sm:text-sm md:text-base lg:text-lg xl:text-xl text-zinc-400 sm:text-zinc-400 md:text-zinc-400 lg:text-zinc-400 xl:text-zinc-400">
-            Berikut adalah daftar tautan yang telah Anda buat.
+            Below is a list of the links you have created.
           </p>
         </div>
         

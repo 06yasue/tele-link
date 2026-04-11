@@ -20,27 +20,34 @@ export async function GET(
     return NextResponse.json({ error: 'Link Not Found' }, { status: 404 });
   }
 
-  const userAgent = request.headers.get('user-agent')?.toLowerCase() || '';
-  
-  // 2. DETEKSI BOT YANG BENERAN BOT (Cuma buat Scraping/Preview)
-  // Kita pastiin dia beneran bot crawler, bukan in-app browser manusia
+  // 2. Baca Identitas Pengunjung (User-Agent & Referer)
+  const headersList = request.headers;
+  const userAgent = headersList.get('user-agent')?.toLowerCase() || '';
+  const referer = headersList.get('referer')?.toLowerCase() || '';
+
+  // Deteksi bot scraper (Cuma bot yang tugasnya narik data untuk preview)
   const isBotScraper = /facebookexternalhit|whatsapp|telegrambot|twitterbot|slackbot|discordbot|bingbot|googlebot/i.test(userAgent);
 
-  // 3. LOGIKA REDIRECT V2
-  
-  // A. Jika ini BOT SCRAPER: Kasih Fake Link (Biar preview domain asli muncul)
+  // --- LOGIKA REDIRECT V2 HARGA MATI ---
+
+  // KONDISI 1: BOT SOSMED DATANG (Buat Preview) -> FAKE LINK
   if (isBotScraper && urlData.fake_url) {
     return Response.redirect(urlData.fake_url, 302);
   }
 
-  // B. Jika ini MANUSIA (Klik dari Sosmed atau Browser Langsung): 
-  // Kita lempar ke Link Tujuan (Original URL)
-  // Tapi kalau lu tetep pengen kalau orang COPY-PASTE manual ke browser ke Fake Link,
-  // maka biarkan logika ini. Tapi saran gw: Langsung ke tujuan aja biar user gak bingung.
-  
-  // Update hitcount di background
-  supabase.from('urls').update({ hitcount: (urlData.hitcount || 0) + 1 }).eq('id', urlData.id).then();
+  // KONDISI 2: ORANG KLIK DARI SOSMED (Ada jejak Referer) -> LINK TUJUAN ASLI
+  // Kalau referer gak kosong, artinya dia beneran ngeklik dari suatu tempat (sosmed, web lain)
+  if (referer.length > 0) {
+    // Tambah hitcount karena ada manusia asli yang ngeklik
+    supabase.from('urls').update({ hitcount: (urlData.hitcount || 0) + 1 }).eq('id', urlData.id).then();
+    return Response.redirect(urlData.original_url, 302);
+  }
 
-  // LANGSUNG KE TUJUAN (Original URL)
+  // KONDISI 3: ORANG AKSES LANGSUNG KE BROWSER (Copy-Paste / Gak ada Referer) -> FAKE LINK
+  if (urlData.fake_url) {
+    return Response.redirect(urlData.fake_url, 302);
+  }
+
+  // Fallback (Jaga-jaga kalau fake_url kosong karena alasan tertentu)
   return Response.redirect(urlData.original_url, 302);
 }
